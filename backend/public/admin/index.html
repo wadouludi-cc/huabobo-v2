@@ -289,10 +289,14 @@
             <label><span>GLB 模型文件</span><input type="file" id="model-glb" accept=".glb,model/gltf-binary"><p class="editor-section-hint">选择 .glb 后将自动生成缩略图（最大 50MB）</p></label>
             <p id="model-thumb-status" class="editor-section-hint"></p>
             <div id="model-glb-info" class="editor-section-hint"></div>
+            <div id="model-upload-progress" class="upload-progress" hidden>
+              <div class="upload-progress-bar"><span id="model-upload-progress-fill"></span></div>
+              <p id="model-upload-progress-text" class="upload-progress-text"></p>
+            </div>
             <div id="model-thumb-preview" class="image-preview model-thumb-preview" hidden></div>
             <div class="form-actions">
               <button type="button" id="model-cancel" class="btn btn-ghost">取消</button>
-              <button type="submit" class="btn btn-primary">保存</button>
+              <button type="submit" id="model-save-btn" class="btn btn-primary">保存</button>
             </div>
             <p id="model-form-error" class="form-error" hidden></p>
           </form>

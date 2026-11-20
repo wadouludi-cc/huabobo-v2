@@ -833,6 +833,32 @@ body.admin-auth .app {
   margin-top: 8px;
 }
 
+/* 模型上传进度条 */
+.upload-progress { margin-top: 10px; }
+.upload-progress[hidden] { display: none !important; }
+.upload-progress-bar {
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(30, 77, 107, 0.12);
+  overflow: hidden;
+}
+.upload-progress-bar > span {
+  display: block;
+  height: 100%;
+  width: 0;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--primary), #e0556b);
+  transition: width 0.15s ease;
+}
+.upload-progress-text {
+  margin-top: 6px;
+  font-size: 0.8rem;
+  color: var(--ink-soft);
+  line-height: 1.4;
+}
+.upload-progress.is-done .upload-progress-bar > span { background: #2c8a5e; }
+.upload-progress.is-error .upload-progress-bar > span { background: var(--primary); }
+
 .card-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));

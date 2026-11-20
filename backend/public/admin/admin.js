@@ -174,6 +174,68 @@
       });
   }
 
+  /**
+   * 带上传进度的请求。fetch 无法获取上传进度，大文件（GLB）改用 XHR。
+   * options: { method, body, timeout, onProgress(loaded,total), onUploadComplete() }
+   */
+  function apiUpload(path, options) {
+    options = options || {};
+    var timeoutMs = options.timeout || 120000;
+    return new Promise(function (resolve, reject) {
+      var xhr = new XMLHttpRequest();
+      xhr.open(options.method || 'POST', getApiBase() + path, true);
+      if (token()) xhr.setRequestHeader('Authorization', 'Bearer ' + token());
+      xhr.timeout = timeoutMs;
+
+      if (xhr.upload && typeof options.onProgress === 'function') {
+        xhr.upload.onprogress = function (evt) {
+          if (evt.lengthComputable) options.onProgress(evt.loaded, evt.total);
+        };
+      }
+      if (xhr.upload && typeof options.onUploadComplete === 'function') {
+        xhr.upload.onload = function () {
+          options.onUploadComplete();
+        };
+      }
+
+      xhr.onload = function () {
+        var text = xhr.responseText || '';
+        var data;
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch (e2) {
+          reject(new Error('服务器返回异常（HTTP ' + xhr.status + '）。请确认后端服务已重启最新代码。'));
+          return;
+        }
+        if (xhr.status < 200 || xhr.status >= 300) {
+          var err = new Error((data && data.message) || '上传失败');
+          err.status = xhr.status;
+          reject(err);
+          return;
+        }
+        resolve(data);
+      };
+      xhr.onerror = function () {
+        reject(new Error('网络错误，上传失败。请检查后端服务（' + getApiBase() + '）是否正常。'));
+      };
+      xhr.ontimeout = function () {
+        reject(new Error('上传超时（' + Math.round(timeoutMs / 1000) + ' 秒），请检查网络后重试。'));
+      };
+      xhr.onabort = function () {
+        reject(new Error('上传已取消'));
+      };
+
+      xhr.send(options.body);
+    });
+  }
+
+  function formatFileSize(bytes) {
+    if (!bytes || bytes < 0) return '0 B';
+    if (bytes < 1024) return bytes + ' B';
+    if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
+    return (bytes / 1024 / 1024).toFixed(1) + ' MB';
+  }
+
   function fieldVal(id) {
     var el = document.getElementById(id);
     return el ? el.value : '';
@@ -1718,6 +1780,43 @@
     if (el) el.textContent = msg || '';
   }
 
+  function setModelUploadProgress(loaded, total) {
+    var wrap = document.getElementById('model-upload-progress');
+    var fill = document.getElementById('model-upload-progress-fill');
+    var text = document.getElementById('model-upload-progress-text');
+    if (!wrap || !fill || !text) return;
+    wrap.hidden = false;
+    wrap.classList.remove('is-done', 'is-error');
+    var pct = total > 0 ? Math.min(100, Math.round((loaded / total) * 100)) : 0;
+    fill.style.width = pct + '%';
+    text.textContent =
+      '正在上传 ' + pct + '%（' + formatFileSize(loaded) + ' / ' + formatFileSize(total) + '）';
+  }
+
+  function finishModelUploadProgress(ok, msg) {
+    var wrap = document.getElementById('model-upload-progress');
+    var fill = document.getElementById('model-upload-progress-fill');
+    var text = document.getElementById('model-upload-progress-text');
+    if (!wrap || !fill || !text) return;
+    wrap.hidden = false;
+    wrap.classList.remove('is-done', 'is-error');
+    wrap.classList.add(ok ? 'is-done' : 'is-error');
+    fill.style.width = '100%';
+    text.textContent = msg || (ok ? '上传完成，正在保存…' : '上传失败');
+  }
+
+  function resetModelUploadProgress() {
+    var wrap = document.getElementById('model-upload-progress');
+    var fill = document.getElementById('model-upload-progress-fill');
+    var text = document.getElementById('model-upload-progress-text');
+    if (wrap) {
+      wrap.hidden = true;
+      wrap.classList.remove('is-done', 'is-error');
+    }
+    if (fill) fill.style.width = '0%';
+    if (text) text.textContent = '';
+  }
+
   function waitForModelThumbModule(maxMs) {
     maxMs = maxMs || 20000;
     return Promise.race([
@@ -1792,6 +1891,7 @@
     modelAutoThumbBlob = null;
     modelThumbGenId += 1;
     setModelThumbStatus('');
+    resetModelUploadProgress();
     showImagePreview(document.getElementById('model-thumb-preview'), '');
 
     if (!id) {
@@ -1856,6 +1956,11 @@
     }
 
     function submitModelForm() {
+      var submitBtn = document.getElementById('model-save-btn');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.textContent = glbFile ? '上传中…' : '保存中…';
+      }
       var ready = Promise.resolve(modelAutoThumbBlob);
       if (glbFile && !modelAutoThumbBlob) {
         setModelThumbStatus('等待缩略图生成完成…');
@@ -1888,17 +1993,64 @@
               fd.append('thumbnailKeep', document.getElementById('model-thumb-keep').value);
             }
           }
-          return api('/api/admin/studio-models' + (id ? '/' + id : ''), {
-            method: id ? 'PUT' : 'POST',
-            body: fd,
-            timeout: 120000
-          });
+          var saveBtn = document.getElementById('model-save-btn');
+          var isUpload = !!glbFile;
+          if (isUpload) {
+            resetModelUploadProgress();
+            setModelUploadProgress(0, glbFile.size);
+            if (saveBtn) {
+              saveBtn.disabled = true;
+              saveBtn.textContent = '上传中…';
+            }
+          }
+          var req = isUpload
+            ? apiUpload('/api/admin/studio-models' + (id ? '/' + id : ''), {
+                method: id ? 'PUT' : 'POST',
+                body: fd,
+                timeout: 120000,
+                onProgress: function (loaded, total) {
+                  setModelUploadProgress(loaded, total);
+                },
+                onUploadComplete: function () {
+                  finishModelUploadProgress(true, '文件已上传，服务器正在处理（保存与生成记录）…');
+                }
+              })
+            : api('/api/admin/studio-models' + (id ? '/' + id : ''), {
+                method: id ? 'PUT' : 'POST',
+                body: fd,
+                timeout: 120000
+              });
+          return req.then(
+            function (res) {
+              if (isUpload) finishModelUploadProgress(true, '上传完成');
+              return res;
+            },
+            function (err) {
+              if (isUpload) finishModelUploadProgress(false, err.message || '上传失败');
+              if (saveBtn) {
+                saveBtn.disabled = false;
+                saveBtn.textContent = '保存';
+              }
+              throw err;
+            }
+          );
         })
         .then(function () {
           document.getElementById('model-form').hidden = true;
+          resetModelUploadProgress();
+          var saveBtn = document.getElementById('model-save-btn');
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '保存';
+          }
           loadStudioLibraryAdmin();
         })
         .catch(function (err) {
+          var saveBtn = document.getElementById('model-save-btn');
+          if (saveBtn) {
+            saveBtn.disabled = false;
+            saveBtn.textContent = '保存';
+          }
           errEl.textContent = err.message || '保存失败';
           errEl.hidden = false;
         });
