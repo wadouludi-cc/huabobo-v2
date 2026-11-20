@@ -677,7 +677,8 @@ async function createModelMeshFromEntry(entry) {
     mesh.traverse((c) => {
       if (c.isMesh) {
         c.castShadow = true;
-        c.receiveShadow = true;
+        // 模型不接收阴影：避免自阴影在曲面上产生网格状摩尔纹；案板仍接收投影
+        c.receiveShadow = false;
       }
     });
     return mesh;
@@ -882,6 +883,7 @@ function initScene() {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   setViewportBackgroundWhite();
 
   controls = new OrbitControls(camera, canvas);
@@ -904,6 +906,16 @@ function initScene() {
   const dir = new THREE.DirectionalLight(0xffffff, 0.85);
   dir.position.set(3, 6, 4);
   dir.castShadow = true;
+  // 收紧阴影相机到案板范围并提高贴图精度，配合 bias 消除自阴影摩尔纹
+  dir.shadow.mapSize.set(2048, 2048);
+  dir.shadow.camera.near = 0.5;
+  dir.shadow.camera.far = 20;
+  dir.shadow.camera.left = -4;
+  dir.shadow.camera.right = 4;
+  dir.shadow.camera.top = 4;
+  dir.shadow.camera.bottom = -4;
+  dir.shadow.bias = -0.0005;
+  dir.shadow.normalBias = 0.02;
   scene.add(dir);
   const fill = new THREE.DirectionalLight(0x8899aa, 0.35);
   fill.position.set(-2, 2, -3);
