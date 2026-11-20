@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "sqlite",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "6",
+      "when": 1794459018483,
+      "tag": "0000_equal_magik",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "6",
+      "when": 1794572328476,
+      "tag": "0001_easy_bloodaxe",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1795149960813,
+      "tag": "0002_lumpy_prima",
+      "breakpoints": true
+    }
+  ]
+}

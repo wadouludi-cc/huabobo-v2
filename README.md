@@ -1,0 +1,177 @@
+# 指间塑 — 胶东花饽饽文化传播平台
+
+在线展示花饽饽作品、新闻资讯与合作手艺人，支持用户自己动手做面塑 DIY 并分享到数字化展厅。
+
+本文档只讲两件事：**怎么部署上线**，**部署好后怎么用**。
+
+---
+
+## 一、部署方式
+
+### 方式一：服务器正式部署（推荐）
+
+一台 VPS + 一个域名即可，全程 Docker，不需要宝塔、不用手工配 Nginx。
+
+**准备工作**
+
+1. 一台能连公网的服务器（1 核 2G 起），已安装 Docker（含 `docker compose` 插件）
+2. 一个域名，已做 DNS 解析指向服务器 IP（例如 `www.example.com` → 服务器 IP）
+3. 服务器放行 80 / 443 端口，浏览器能用 HTTPS 访问
+
+**部署步骤**
+
+```bash
+# 1. 拿到代码
+git clone <本仓库地址> huabobo-v2
+cd huabobo-v2
+
+# 2. 填写配置
+cp .env.example .env
+# 用记事本 / vi 打开 .env，只填 3 项（去掉行首 # 再填）：
+# DOMAIN=你的域名（如 www.example.com，不要加 https://）
+# POSTGRES_PASSWORD=一个随机强密码
+# JWT_SECRET=一串随机长字符串
+
+# 3. 启动（首次会自动建库、导入示例数据、申请 HTTPS 证书）
+docker compose up -d --build
+
+# 4. 验证
+curl https://你的域名/api/health
+# 返回 {"ok":true,"db":"connected",...} 即成功
+```
+
+之后直接访问：
+
+| 用途 | 地址 |
+|------|------|
+| 网站首页 | `https://你的域名` |
+| 管理后台 | `https://你的域名/admin/` |
+| 管理员初始账号 | `admin` / `zhijiansu@admin`（首次登录后立即改密码） |
+
+**日常维护（记住 3 条就够）**
+
+```bash
+bash scripts/deploy-server.sh   # 更新代码后重新部署（推荐：备份+刷缓存+健康检查+失败回滚）
+docker compose logs -f backend  # 看后端日志，出问题先看这个
+docker compose ps               # 三个容器都 Up 才算正常
+```
+
+> 不要裸 `git pull + docker compose up`：发布脚本会自动刷新前端 `?v`（工作区会变脏），下次裸 `pull` 可能冲突。统一走脚本，它内部会 `reset` 处理。
+
+**全自动发布（push main 直发生产，无 staging）**
+
+`CI` 全绿后 `Deploy` 自动 `SSH` 上服务器执行 `scripts/deploy-server.sh`：
+拉取 `main` → 备份数据库到 `backups/` → 刷新前端 `?v` 缓存键 → `compose up -d --build` →
+轮询 `https://你的域名/api/health`（`db:"connected"` 才算成），失败自动回滚到上一个提交。
+
+```bash
+# 服务器一次性准备（已有仓库 + .env 的机器）
+git clone <本仓库> /opt/huabobo-v2 && cd /opt/huabobo-v2
+cp .env.example .env   # 填 DOMAIN/POSTGRES_PASSWORD/JWT_SECRET，再加 SKIP_SEED_OVERWRITE=1
+bash scripts/deploy-server.sh   # 手动跑一次验证通过，以后全自动
+```
+
+GitHub 仓库 `Settings → Environments → production → Environment secrets` 配 4 个必填 + 1 个可选：
+
+| Secret | 内容 |
+|--------|------|
+| `SSH_HOST` | 服务器 IP/域名 |
+| `SSH_USER` | 如 `root` 或专用 `deploy` 用户 |
+| `SSH_KEY` | `ssh-keygen -t ed25519` 的私钥（公钥写入服务器 `~/.ssh/authorized_keys`） |
+| `SSH_PORT` | 可选，默认 `22` |
+| `DEPLOY_DIR` | 如 `/opt/huabobo-v2` |
+
+**`SSH_KEY` 生成方式（在服务器上执行一次，私钥只用于部署）：**
+
+```
+ssh-keygen -t ed25519 -f ~/.ssh/huabobo-deploy -N "" -C "github-deploy"
+cat ~/.ssh/huabobo-deploy.pub >> ~/.ssh/authorized_keys
+chmod 600 ~/.ssh/authorized_keys
+cat ~/.ssh/huabobo-deploy   # 全文贴到 SSH_KEY secret（含首尾 BEGIN/END 行）
+```
+
+换服务器时在新机器上重跑一遍，把新私钥 Update 到 `SSH_KEY` 即可；过渡期把新公钥也追加到旧机器，secret 换新后两台都能连。
+
+生产 `.env` 建议再加 `SKIP_SEED_OVERWRITE=1`（只补缺失示例数据，不覆盖管理员改过的新闻/艺人）。本地/CI 不设，保持原行为。
+
+**可选功能：数字人语音 / 识图点评**
+
+不填也能用（会自动降级为浏览器发音 + 本地规则）。需要时在 `.env` 里追加后重启即可：
+
+```bash
+# OPENAI_API_KEY=sk-开头，任一 OpenAI 兼容站
+# OPENAI_BASE_URL=服务商 Base URL（如智谱 https://open.bigmodel.cn/api/paas/v4）
+# OPENAI_MODEL=识图点评共用模型（如 glm-5.3-flash）
+# OPENAI_THINKING=思考开关（enabled/low/留空关闭）
+# OPENAI_TTS_VOICE_FEMALE=tongtong   # 女性数字人音色
+# OPENAI_TTS_VOICE_MALE=xiaochen     # 男性数字人音色
+docker compose up -d --build
+```
+
+### 方式二：本地体验（不上线、自己看看）
+
+只需要 Node.js 22 以上。
+
+```bash
+# 后端（新开一个终端）
+cd backend
+cp .env.example .env
+npm install
+npm start
+# 看到监听 3000 即成功
+
+# 前端（再开一个终端）
+cd frontend
+npm start
+# 浏览器打开 http://127.0.0.1:8765
+```
+
+管理后台地址：`http://127.0.0.1:3000/admin/`，账号同上。
+
+---
+
+## 二、使用方法
+
+### 1. 访客（不用注册）
+
+- 首页：了解平台，看推荐作品和资讯入口
+- 数字化展厅（`展厅`）：浏览大家分享的作品，给作品点赞、留言
+- 新闻资讯：看平台动态，点标题进详情
+- 合作手艺人：看手艺人介绍，点进个人主页看他的作品
+- 关于我们 / 公益 / 花样：了解花饽饽文化和公益项目
+
+### 2. 注册用户（前台右上角 注册 / 登录）
+
+1. 注册一个账号并登录
+2. 进 `DIY 工作台`：
+   - 先过摄像头授权页（浏览器会要摄像头权限；线上必须用 HTTPS 打开，本地用 `127.0.0.1` 打开）
+   - 选一个模型开始捏面塑，做好后点保存（存为草稿）或发布（分享到数字化展厅）
+3. 进 `我的`：看自己的主页、草稿和已发布作品
+4. 在展厅里给喜欢的作品点赞、留言，留言会显示在作品详情页
+
+### 3. 管理员（`https://你的域名/admin/`）
+
+1. 用 `admin` 账号登录，**第一件事是改密码**
+2. 日常操作都在后台左侧菜单：
+   - 新闻：发布 / 修改 / 删除前台看到的资讯
+   - 合作艺人：新增 / 修改前台展示的手艺人
+   - 作品与留言：查看用户发布的作品，删除不当留言
+   - 模型库：上传 DIY 工作台用的 `.glb` 模型（可顺手传一张缩略图，没有也行，打开一次会自动补）
+   - 数字人管理：上传带 Mixamo 骨骼的 GLB 数字人，设置名称、性别（绑定男/女声）、背景和启用状态；同一时间只能启用一个，前端只加载启用的那个
+     - 未启用时 Studio 显示“数字人暂未配置”，不会加载任何默认形象；需要数字人点评时先上传并启用一个
+     - 首次上线：新增「饽饽小匠」→ 性别女 → 背景纯色 `#f3ebe0` → 上传仓库里的 `assets/digital-human-samples/shaded.glb` → 勾选启用
+   - 关于我们：修改前台“关于我们”页面的文字和图片
+   - 用户：查注册用户、重置密码
+3. 发布的东西前台实时生效，不用重启
+
+---
+
+## 三、对不上时先看这里
+
+| 现象 | 先查什么 |
+|------|----------|
+| 打开管理后台登录报 `Failed to fetch` | 必须用 `https://你的域名/admin/` 打开，不要用 IP+端口；再查 `docker compose ps` 三容器是否都 Up |
+| `https://你的域名/api/health` 打不开 | `docker compose logs backend` 看报错，多半是 `.env` 里 DOMAIN / 密码写错 |
+| 管理后台图片不显示 | `.env` 里 `DOMAIN` 必须和当前访问的域名一致，改完 `docker compose up -d --build` |
+| 摄像头打不开 | 浏览器只允许 HTTPS 或 `http://127.0.0.1` 用摄像头，换对应地址重进 |
+| 更新代码后图片没了 | 属正常：上传文件存在数据卷里，更新只跑 `bash scripts/deploy-server.sh`，不要删卷、不要 `down -v` |

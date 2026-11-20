@@ -1,0 +1,37 @@
+{
+  "name": "zhijiansu-backend",
+  "version": "1.0.0",
+  "description": "指间塑 — Node.js 后台 API（PostgreSQL 生产 / SQLite 本地）",
+  "main": "src/index.js",
+  "scripts": {
+    "prestart": "node scripts/check-deps.js",
+    "start": "node src/index.js",
+    "dev": "node scripts/check-deps.js && node src/index.js",
+    "seed": "node src/seed.js",
+    "import:models": "node scripts/import-models.js",
+    "db:generate": "drizzle-kit generate --config=drizzle.pg.config.js && drizzle-kit generate --config=drizzle.sqlite.config.js",
+    "optimize:models": "node scripts/optimize-models.js",
+    "build:admin-thumb": "node scripts/build-admin-thumb.mjs",
+    "postinstall": "node -e \"console.log('[ok] 依赖安装完成，可执行 npm start')\""
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "better-sqlite3": "^13.1.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.5",
+    "drizzle-orm": "^0.45.4",
+    "express": "^4.21.0",
+    "jsonwebtoken": "^9.0.2",
+    "marked": "^15.0.7",
+    "morgan": "^1.10.0",
+    "multer": "^1.4.5-lts.1",
+    "pg": "^8.23.1"
+  },
+  "devDependencies": {
+    "@gltf-transform/cli": "^4.5.1",
+    "drizzle-kit": "^0.31.11"
+  }
+}
