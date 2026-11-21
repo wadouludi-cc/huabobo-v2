@@ -1255,3 +1255,99 @@ body.admin-auth .app {
 .order-address-note .btn {
   margin-left: 8px;
 }
+
+/* ===== 打印申请 ===== */
+.data-table-prints .cell-thumb { width: 76px; }
+.data-table-prints th { white-space: nowrap; }
+.print-thumb {
+  width: 56px;
+  height: 56px;
+  border-radius: 10px;
+  object-fit: cover;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  display: block;
+}
+.print-thumb-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  color: var(--ink-soft);
+  letter-spacing: 0.04em;
+}
+.print-addr-cell { font-size: 0.82rem; line-height: 1.5; }
+.print-ship-phone { color: var(--ink-soft); }
+.print-ship-addr { color: var(--ink); }
+.print-ship-missing { color: #b3261e; }
+
+.print-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(320px, 1fr) minmax(280px, 0.95fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.print-preview-stage {
+  position: relative;
+  width: 100%;
+  height: 320px;
+  border-radius: 14px;
+  border: 1px solid var(--border);
+  background: #f7f4ef;
+  overflow: hidden;
+  touch-action: none;
+}
+
+.print-preview-stage > .editor-section-hint,
+.print-preview-stage > .form-error {
+  position: absolute;
+  inset: 0;
+  margin: 0;
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.print-preview-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.print-preview-actions .editor-section-hint {
+  margin: 0;
+  flex: 1 1 160px;
+}
+
+.print-info-list {
+  display: grid;
+  grid-template-columns: 84px 1fr;
+  gap: 8px 12px;
+  margin: 0 0 6px;
+}
+
+.print-info-list dt {
+  color: var(--ink-soft);
+  font-size: 0.84rem;
+}
+
+.print-info-list dd {
+  margin: 0;
+  font-size: 0.88rem;
+  line-height: 1.55;
+  word-break: break-word;
+}
+
+@media (max-width: 860px) {
+  .print-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .print-preview-stage {
+    height: 240px;
+  }
+}

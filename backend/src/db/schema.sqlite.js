@@ -153,6 +153,12 @@ const printOrders = sqliteTable('print_orders', {
   userId: text('user_id').notNull().default(''),
   contact: text('contact').notNull().default(''),
   note: text('note').notNull().default(''),
+  /** 下单时快照的收货信息（来自用户默认地址） */
+  shipName: text('ship_name').notNull().default(''),
+  shipPhone: text('ship_phone').notNull().default(''),
+  shipAddress: text('ship_address').notNull().default(''),
+  /** 提交时的 3D 快照 JSON（组合好的花饽饽，用于后台复现与 STL 导出） */
+  snapshot: text('snapshot').notNull().default(''),
   status: text('status').notNull().default('pending'),
   createdAt: integer('created_at', { mode: 'number' }).notNull(),
   updatedAt: integer('updated_at', { mode: 'number' }).notNull()

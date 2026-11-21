@@ -113,6 +113,10 @@ async function connectDb() {
       await pgPool.query("ALTER TABLE works ADD COLUMN IF NOT EXISTS studio TEXT DEFAULT ''");
       await pgPool.query("ALTER TABLE studio_models ADD COLUMN IF NOT EXISTS category_ids TEXT DEFAULT '[]'");
       await pgPool.query("CREATE TABLE IF NOT EXISTS print_orders (id TEXT PRIMARY KEY NOT NULL, work_id TEXT DEFAULT '' NOT NULL, user_id TEXT DEFAULT '' NOT NULL, contact TEXT DEFAULT '' NOT NULL, note TEXT DEFAULT '' NOT NULL, status TEXT DEFAULT 'pending' NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)");
+      await pgPool.query("ALTER TABLE print_orders ADD COLUMN IF NOT EXISTS ship_name TEXT DEFAULT '' NOT NULL");
+      await pgPool.query("ALTER TABLE print_orders ADD COLUMN IF NOT EXISTS ship_phone TEXT DEFAULT '' NOT NULL");
+      await pgPool.query("ALTER TABLE print_orders ADD COLUMN IF NOT EXISTS ship_address TEXT DEFAULT '' NOT NULL");
+      await pgPool.query("ALTER TABLE print_orders ADD COLUMN IF NOT EXISTS snapshot TEXT DEFAULT '' NOT NULL");
       await pgPool.query("CREATE TABLE IF NOT EXISTS digital_humans (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, gender TEXT DEFAULT 'female' NOT NULL, glb_url TEXT NOT NULL, thumbnail TEXT DEFAULT '' NOT NULL, background_type TEXT DEFAULT 'color' NOT NULL, background_color TEXT DEFAULT '#f3ebe0' NOT NULL, background_image TEXT DEFAULT '' NOT NULL, enabled BOOLEAN DEFAULT false NOT NULL, rig_info TEXT DEFAULT '{}' NOT NULL, sort_order INTEGER DEFAULT 0 NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)");
       await pgPool.query("CREATE INDEX IF NOT EXISTS digital_humans_enabled_idx ON digital_humans (enabled)");
       await pgPool.query("CREATE UNIQUE INDEX IF NOT EXISTS digital_humans_single_enabled ON digital_humans (enabled) WHERE enabled = true");
@@ -160,6 +164,12 @@ async function connectDb() {
       var hasCatIds = (mcols || []).some(function (c) { return c && (c.name === 'category_ids' || c.name === 'categoryIds'); });
       if (!hasCatIds) sqliteHandle.exec("ALTER TABLE studio_models ADD COLUMN category_ids TEXT DEFAULT '[]'");
       sqliteHandle.exec("CREATE TABLE IF NOT EXISTS print_orders (id TEXT PRIMARY KEY NOT NULL, work_id TEXT DEFAULT '' NOT NULL, user_id TEXT DEFAULT '' NOT NULL, contact TEXT DEFAULT '' NOT NULL, note TEXT DEFAULT '' NOT NULL, status TEXT DEFAULT 'pending' NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
+      var pcols = sqliteHandle.prepare('PRAGMA table_info(print_orders)').all();
+      var pcolNames = (pcols || []).map(function (c) { return c && c.name; });
+      if (pcolNames.indexOf('ship_name') < 0) sqliteHandle.exec("ALTER TABLE print_orders ADD COLUMN ship_name TEXT DEFAULT '' NOT NULL");
+      if (pcolNames.indexOf('ship_phone') < 0) sqliteHandle.exec("ALTER TABLE print_orders ADD COLUMN ship_phone TEXT DEFAULT '' NOT NULL");
+      if (pcolNames.indexOf('ship_address') < 0) sqliteHandle.exec("ALTER TABLE print_orders ADD COLUMN ship_address TEXT DEFAULT '' NOT NULL");
+      if (pcolNames.indexOf('snapshot') < 0) sqliteHandle.exec("ALTER TABLE print_orders ADD COLUMN snapshot TEXT DEFAULT '' NOT NULL");
       sqliteHandle.exec("CREATE TABLE IF NOT EXISTS digital_humans (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, gender TEXT DEFAULT 'female' NOT NULL, glb_url TEXT NOT NULL, thumbnail TEXT DEFAULT '' NOT NULL, background_type TEXT DEFAULT 'color' NOT NULL, background_color TEXT DEFAULT '#f3ebe0' NOT NULL, background_image TEXT DEFAULT '' NOT NULL, enabled INTEGER DEFAULT 0 NOT NULL, rig_info TEXT DEFAULT '{}' NOT NULL, sort_order INTEGER DEFAULT 0 NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
       sqliteHandle.exec("CREATE INDEX IF NOT EXISTS digital_humans_enabled_idx ON digital_humans (enabled)");
       sqliteHandle.exec("CREATE UNIQUE INDEX IF NOT EXISTS digital_humans_single_enabled ON digital_humans (enabled) WHERE enabled = 1");

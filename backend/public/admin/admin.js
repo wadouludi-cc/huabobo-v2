@@ -2592,39 +2592,341 @@
       });
   }
 
+  var printOrderCache = {};
+  var printPreviewHandle = null;
+  var printComposition = null;
+  var printStlPromise = null;
+  var PRINT_STATUS_LABEL = { pending: '待处理', handling: '处理中', done: '已完成', rejected: '已拒绝' };
+
+  /** 三维模块是 ES module，可能在第一次点开时才就绪 */
+  function ensurePrintStl() {
+    if (window.AdminPrintStl) return Promise.resolve(window.AdminPrintStl);
+    if (!printStlPromise) {
+      printStlPromise = new Promise(function (resolve, reject) {
+        var settled = false;
+        function done() {
+          if (settled) return;
+          settled = true;
+          if (window.AdminPrintStl) resolve(window.AdminPrintStl);
+          else reject(new Error('三维模块加载失败，请刷新页面后重试'));
+        }
+        window.addEventListener('admin-print-stl-ready', done, { once: true });
+        setTimeout(done, 12000);
+      });
+    }
+    return printStlPromise;
+  }
+
+  function printModelResolver(modelMap) {
+    return function (modelId) {
+      var m = modelMap && modelMap[modelId];
+      if (!m || !m.glbUrl) return '';
+      return adminUploadUrl(m.glbUrl);
+    };
+  }
+
   function loadPrints() {
     return api('/api/admin/print-orders').then(function (res) {
       var wrap = document.getElementById('prints-list');
       if (!wrap) return;
       var list = (res.data && res.data.list) || [];
+      printOrderCache = {};
       if (!list.length) {
         wrap.innerHTML = '<p class="empty-hint">暂无打印申请</p>';
         return;
       }
-      var statusLabel = { pending: '待处理', handling: '处理中', done: '已完成', rejected: '已拒绝' };
+      list.forEach(function (o) {
+        printOrderCache[o.id] = o;
+      });
       wrap.innerHTML =
-        '<table class="data-table"><thead><tr><th>作品ID</th><th>联系方式</th><th>备注</th><th>状态</th><th>时间</th><th></th></tr></thead><tbody>' +
-        list.map(function (o) {
-          return '<tr><td>' + escapeHtml(o.workId || '—') + '</td><td>' + escapeHtml(o.contact || '') + '</td><td>' +
-            escapeHtml(o.note || '—') + '</td><td>' + escapeHtml(statusLabel[o.status] || o.status) + '</td><td>' +
-            escapeHtml(o.createdAt || '') + '</td><td><div class="table-actions">' +
-            '<button type="button" class="btn btn-ghost" data-print-status="handling" data-print-id="' + o.id + '">处理中</button>' +
-            '<button type="button" class="btn btn-ghost" data-print-status="done" data-print-id="' + o.id + '">完成</button>' +
-            '<button type="button" class="btn btn-danger" data-print-status="rejected" data-print-id="' + o.id + '">拒绝</button>' +
-            '</div></td></tr>';
-        }).join('') + '</tbody></table>';
-      wrap.querySelectorAll('[data-print-id]').forEach(function (btn) {
+        '<table class="data-table data-table-prints"><thead><tr><th class="cell-thumb">作品</th><th>作品名</th><th>申请人</th><th>收货地址</th><th>联系方式</th><th>状态</th><th>申请时间</th><th class="cell-actions">操作</th></tr></thead><tbody>' +
+        list
+          .map(function (o) {
+            var w = o.work || {};
+            var img = w.image ? adminUploadUrl(w.image) : '';
+            var firstModelId = ((o.snapshot && o.snapshot.instances) || [])[0];
+            var thumb = img
+              ? '<img class="print-thumb" src="' + escapeHtml(img) + '" alt="" loading="lazy">'
+              : '<span class="print-thumb print-thumb-empty" data-print-thumb-model="' +
+                escapeHtml((firstModelId && firstModelId.modelId) || '') +
+                '">3D</span>';
+            var ship = o.ship || {};
+            var addrHtml = ship.address
+              ? escapeHtml(ship.name || '—') +
+                '<br><span class="print-ship-phone">' +
+                escapeHtml(ship.phone || '') +
+                '</span><br><span class="print-ship-addr">' +
+                escapeHtml(ship.address) +
+                '</span>'
+              : '<span class="print-ship-missing">未填写收货地址</span>';
+            var user = o.user || {};
+            return (
+              '<tr><td class="cell-thumb">' +
+              thumb +
+              '</td><td>' +
+              escapeHtml(printWorkTitle(o)) +
+              '</td><td>' +
+              escapeHtml(user.nickname || user.handle || '—') +
+              '</td><td class="print-addr-cell">' +
+              addrHtml +
+              '</td><td>' +
+              escapeHtml(o.contact || '—') +
+              '</td><td><span class="order-status-tag is-' +
+              escapeHtml(o.status) +
+              '">' +
+              escapeHtml(PRINT_STATUS_LABEL[o.status] || o.status) +
+              '</span></td><td>' +
+              escapeHtml(o.createdAt || '') +
+              '</td><td class="cell-actions"><div class="table-actions">' +
+              '<button type="button" class="btn btn-ghost" data-print-view="' +
+              escapeHtml(o.id) +
+              '">查看详情</button>' +
+              '</div></td></tr>'
+            );
+          })
+          .join('') +
+        '</tbody></table>';
+
+      wrap.querySelectorAll('[data-print-view]').forEach(function (btn) {
         btn.addEventListener('click', function () {
-          api('/api/admin/print-orders/' + btn.getAttribute('data-print-id'), {
-            method: 'PATCH',
-            body: { status: btn.getAttribute('data-print-status') }
-          }).then(loadPrints).catch(function (err) { alert(err.message || '更新失败'); });
+          openPrintDetail(btn.getAttribute('data-print-view'));
         });
       });
+
+      // 作品没有封面图时，退而用所用模型在模型库里的缩略图
+      var placeholders = wrap.querySelectorAll('[data-print-thumb-model]');
+      if (placeholders.length) {
+        loadStudioModelMap().then(function (modelMap) {
+          placeholders.forEach(function (el) {
+            var mid = el.getAttribute('data-print-thumb-model');
+            var m = mid && modelMap[mid];
+            if (!m || !m.thumbnail) return;
+            var src = adminUploadUrl(m.thumbnail);
+            if (!src) return;
+            var imgEl = document.createElement('img');
+            imgEl.className = 'print-thumb';
+            imgEl.src = src;
+            imgEl.alt = '';
+            imgEl.loading = 'lazy';
+            if (el.parentNode) el.parentNode.replaceChild(imgEl, el);
+          });
+        });
+      }
     }).catch(function (err) {
       var wrap = document.getElementById('prints-list');
       if (wrap) wrap.innerHTML = '<p class="empty-hint">加载失败：' + escapeHtml(err.message || '') + '</p>';
     });
+  }
+
+  function closePrintPreview() {
+    if (printPreviewHandle) {
+      try { printPreviewHandle.dispose(); } catch (e) {}
+      printPreviewHandle = null;
+    }
+    printComposition = null;
+  }
+
+  function closePrintDetail() {
+    var modal = document.getElementById('print-detail-modal');
+    if (modal) modal.hidden = true;
+    closePrintPreview();
+    var body = document.getElementById('print-detail-body');
+    if (body) body.innerHTML = '';
+  }
+
+  function openPrintDetail(id) {
+    var modal = document.getElementById('print-detail-modal');
+    var body = document.getElementById('print-detail-body');
+    if (!modal || !body) return;
+    closePrintPreview();
+    modal.hidden = false;
+    var item = printOrderCache[id];
+    if (!item) {
+      body.innerHTML = '<p class="form-error">申请数据已失效，请关掉弹窗刷新列表</p>';
+      return;
+    }
+    renderPrintDetail(item);
+  }
+
+  /** 打印申请的作品名：未保存过的作品没有 workId */
+  function printWorkTitle(item) {
+    var w = item.work || {};
+    if (w.title) return w.title;
+    return item.workId ? '（作品已删除）' : '（未保存作品）';
+  }
+
+  function renderPrintDetail(item) {
+    var body = document.getElementById('print-detail-body');
+    if (!body) return;
+    var w = item.work || {};
+    var user = item.user || {};
+    var ship = item.ship || {};
+    var titleEl = document.getElementById('print-detail-title');
+    if (titleEl) titleEl.textContent = '打印申请 · ' + printWorkTitle(item);
+
+    var statusBtns = ['pending', 'handling', 'done', 'rejected']
+      .map(function (key) {
+        return (
+          '<button type="button" class="btn ' +
+          (key === item.status ? 'btn-primary' : 'btn-ghost') +
+          '" data-print-status="' +
+          key +
+          '">' +
+          PRINT_STATUS_LABEL[key] +
+          '</button>'
+        );
+      })
+      .join('');
+
+    var snapshotNote =
+      item.snapshotSource === 'order'
+        ? '提交申请时留存的快照'
+        : item.snapshotSource === 'work'
+        ? '使用作品当前保存的快照（旧申请无独立快照）'
+        : '无三维数据';
+
+    body.innerHTML =
+      '<div class="print-detail-grid">' +
+      '<div class="print-detail-left">' +
+      '<div id="print-preview-stage" class="print-preview-stage"><p class="editor-section-hint">正在加载三维模型…</p></div>' +
+      '<div class="print-preview-actions">' +
+      '<button type="button" id="btn-print-download-stl" class="btn btn-primary" disabled>下载 STL</button>' +
+      '<span id="print-stl-hint" class="editor-section-hint"></span>' +
+      '</div>' +
+      '</div>' +
+      '<div class="print-detail-info">' +
+      '<dl class="print-info-list">' +
+      '<dt>作品</dt><dd>' +
+      escapeHtml(printWorkTitle(item)) +
+      '</dd>' +
+      '<dt>申请人</dt><dd>' +
+      escapeHtml(user.nickname || user.handle || '—') +
+      '</dd>' +
+      '<dt>联系方式</dt><dd>' +
+      escapeHtml(item.contact || '—') +
+      '</dd>' +
+      '<dt>收货地址</dt><dd>' +
+      (ship.address
+        ? escapeHtml((ship.name || '') + ' ' + (ship.phone || '')) + '<br>' + escapeHtml(ship.address)
+        : '<span class="print-ship-missing">未填写</span>') +
+      '</dd>' +
+      '<dt>备注</dt><dd>' +
+      escapeHtml(item.note || '—') +
+      '</dd>' +
+      '<dt>申请时间</dt><dd>' +
+      escapeHtml(item.createdAt || '') +
+      '</dd>' +
+      '<dt>三维数据</dt><dd>' +
+      escapeHtml(snapshotNote) +
+      '</dd>' +
+      '<dt>当前状态</dt><dd><span class="order-status-tag is-' +
+      escapeHtml(item.status) +
+      '">' +
+      escapeHtml(PRINT_STATUS_LABEL[item.status] || item.status) +
+      '</span></dd>' +
+      '</dl>' +
+      '<h4>更新状态</h4>' +
+      '<div class="order-status-actions">' +
+      statusBtns +
+      '</div>' +
+      '</div></div>';
+
+    body.querySelectorAll('[data-print-status]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        var key = btn.getAttribute('data-print-status');
+        if (key === item.status) return;
+        btn.disabled = true;
+        api('/api/admin/print-orders/' + encodeURIComponent(item.id), {
+          method: 'PATCH',
+          body: { status: key }
+        })
+          .then(function () {
+            item.status = key;
+            loadPrints();
+            renderPrintDetail(item);
+          })
+          .catch(function (err) {
+            btn.disabled = false;
+            alert(err.message || '状态更新失败');
+          });
+      });
+    });
+
+    var downloadBtn = document.getElementById('btn-print-download-stl');
+    if (downloadBtn) {
+      downloadBtn.addEventListener('click', function () {
+        downloadPrintStl(item);
+      });
+    }
+
+    renderPrintPreview(item);
+  }
+
+  function renderPrintPreview(item) {
+    var stage = document.getElementById('print-preview-stage');
+    var hint = document.getElementById('print-stl-hint');
+    if (!stage) return;
+    var instances = (item.snapshot && item.snapshot.instances) || [];
+    if (!instances.length) {
+      stage.innerHTML = '<p class="editor-section-hint">该申请没有三维快照，无法生成 STL。</p>';
+      return;
+    }
+    if (hint) hint.textContent = '正在加载模型…';
+
+    Promise.all([ensurePrintStl(), loadStudioModelMap()])
+      .then(function (arr) {
+        var mod = arr[0];
+        var modelMap = arr[1] || {};
+        return mod.buildComposition(instances, printModelResolver(modelMap)).then(function (built) {
+          if (!built.root.children.length) {
+            stage.innerHTML =
+              '<p class="editor-section-hint">模型库中找不到该作品使用的模型（可能已被删除），无法生成 STL。</p>';
+            if (hint) hint.textContent = '';
+            return;
+          }
+          stage.innerHTML = '';
+          printPreviewHandle = mod.createCompositionPreview(stage, built.root, {});
+          printComposition = built.root;
+          var size = mod.measureInMm(built.root);
+          var parts = [];
+          if (size) parts.push('成品约 ' + size.width + '×' + size.depth + '×' + size.height + ' mm（长×宽×高）');
+          if (built.missing.length) parts.push(built.missing.length + ' 个模型缺失未计入');
+          if (hint) hint.textContent = parts.join('，');
+          var btn = document.getElementById('btn-print-download-stl');
+          if (btn) btn.disabled = false;
+        });
+      })
+      .catch(function (err) {
+        stage.innerHTML = '<p class="form-error">三维预览加载失败：' + escapeHtml(err.message || '') + '</p>';
+        if (hint) hint.textContent = '';
+      });
+  }
+
+  function downloadPrintStl(item) {
+    var btn = document.getElementById('btn-print-download-stl');
+    var hint = document.getElementById('print-stl-hint');
+    var mod = window.AdminPrintStl;
+    if (!mod || !printComposition) return;
+    if (btn) btn.disabled = true;
+    if (hint) hint.textContent = '正在生成 STL…';
+    setTimeout(function () {
+      try {
+        var out = mod.exportStl(printComposition);
+        if (!out.blob) throw new Error('模型没有可导出的三角面');
+        var base = (item.work && item.work.title) || 'huabobo';
+        var name = String(base).replace(/[\\/:*?"<>|\s]+/g, '_') + '-' + String(item.id).slice(0, 6) + '.stl';
+        mod.downloadStl(out.blob, name);
+        if (hint) {
+          hint.textContent =
+            '已导出 ' + out.triangles + ' 个三角面，尺寸约 ' +
+            out.size.width + '×' + out.size.depth + '×' + out.size.height + ' mm';
+        }
+      } catch (e) {
+        if (hint) hint.textContent = '导出失败：' + (e.message || '未知错误');
+      } finally {
+        if (btn) btn.disabled = false;
+      }
+    }, 30);
   }
 
   /* ---------------- 定制订单 ---------------- */
@@ -3459,6 +3761,7 @@
   onEl('btn-prints-refresh', 'click', function () {
     loadPrints();
   });
+  onEl('print-detail-close', 'click', closePrintDetail);
   onEl('btn-orders-refresh', 'click', function () {
     loadOrders();
   });

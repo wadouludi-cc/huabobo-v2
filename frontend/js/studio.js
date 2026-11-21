@@ -1218,24 +1218,62 @@ async function submitPrintOrder() {
     alert('请先登录后再提交打印申请');
     return;
   }
-  var contact = window.prompt('请留下联系方式（手机/微信），我们收到后联系你确认打印：', '');
+  var base = (window.ZJS && ZJS.API_BASE ? ZJS.API_BASE.replace(/\/$/, '') : '');
+  var token = '';
+  try { token = (window.Api && Api.getAuthToken && Api.getAuthToken()) || sessionStorage.getItem('zhijiansu_user_token') || ''; } catch (e) {}
+
+  // 打印完成后按「我的」页面填写的收货地址寄出，这里先确认地址是否已填
+  var addr = null;
+  try {
+    var addrRes = await fetch(base + '/api/addresses/mine', {
+      headers: token ? { Authorization: 'Bearer ' + token } : {}
+    }).then(function (r) { return r.json(); });
+    addr = (addrRes && addrRes.data && addrRes.data.address) || null;
+  } catch (e) {
+    console.warn('[studio] 读取收货地址失败', e);
+  }
+  if (!addr || !addr.address) {
+    if (confirm('提交打印申请前需要先填写收货地址。\n\n点击「确定」前往「我的」页面填写。')) {
+      window.location.href = 'profile.html?id=me';
+    }
+    return;
+  }
+
+  var contact = window.prompt('请留下联系方式（手机/微信），我们收到后联系你确认打印：', addr.phone || '');
   if (contact == null) return;
   contact = String(contact).trim();
   if (!contact) { alert('联系方式不能为空'); return; }
   var note = window.prompt('备注（可选，如尺寸/颜色/数量）：', '') || '';
+  var snapshot = typeof getStudioSnapshot === 'function' ? getStudioSnapshot() : null;
+  if (!snapshot || !snapshot.instances || !snapshot.instances.length) {
+    alert('案板上还没有模型，先从模型库添加花饽饽再申请打印');
+    return;
+  }
   try {
     setStatus('正在提交实体打印申请…');
-    var base = (window.ZJS && ZJS.API_BASE ? ZJS.API_BASE.replace(/\/$/, '') : '');
-    var token = '';
-    try { token = (window.Api && Api.getAuthToken && Api.getAuthToken()) || sessionStorage.getItem('zhijiansu_user_token') || ''; } catch (e) {}
     var res = await fetch(base + '/api/print-orders', {
       method: 'POST',
       headers: Object.assign({ 'Content-Type': 'application/json' }, token ? { Authorization: 'Bearer ' + token } : {}),
-      body: JSON.stringify({ workId: (typeof lastSavedWorkId !== 'undefined' ? lastSavedWorkId : '') || '', contact: contact, note: note })
+      body: JSON.stringify({
+        workId: (typeof lastSavedWorkId !== 'undefined' ? lastSavedWorkId : '') || '',
+        contact: contact,
+        note: note,
+        snapshot: snapshot
+      })
     }).then(function (r) { return r.json(); });
-    if (!res || !res.ok) throw new Error((res && res.message) || '提交失败');
+    if (!res || !res.ok) {
+      if (res && res.code === 'ADDRESS_REQUIRED') {
+        if (confirm((res.message || '请先填写收货地址') + '\n\n点击「确定」前往「我的」页面填写。')) {
+          window.location.href = 'profile.html?id=me';
+        }
+        setStatus('打印申请未提交：缺少收货地址');
+        return;
+      }
+      throw new Error((res && res.message) || '提交失败');
+    }
     setStatus('打印申请已提交，我们会尽快联系你');
-    alert('打印申请已提交，请先导出 STL/GLB 备用，我们会尽快联系你。');
+    var addrLine = [res.data && res.data.ship ? res.data.ship.name : '', addr.phone, addr.address].filter(Boolean).join(' ');
+    alert('打印申请已提交！\n\n收货地址：' + addrLine + '\n三维模型已一并提交，工作人员可据此直接打印。');
   } catch (e) {
     console.warn('[studio] 打印申请失败', e);
     setStatus('打印申请提交失败');
