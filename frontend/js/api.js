@@ -690,6 +690,11 @@
       return delay(loadCustomOrders());
     },
 
+    /** 本地模式没有后端，3D 打印申请无法落库，统一返回空列表 */
+    getMyPrintOrders: function () {
+      return delay([]);
+    },
+
     /** 本地模式：收货地址（仅 localStorage） */
     getMyAddress: function () {
       return delay({

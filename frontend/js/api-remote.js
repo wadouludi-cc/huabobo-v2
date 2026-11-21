@@ -528,6 +528,20 @@
       });
   };
 
+  /** 当前用户的 3D 打印申请列表（状态与后台「打印申请」保持一致） */
+  Api.getMyPrintOrders = function () {
+    return http('/api/print-orders/mine')
+      .then(function (res) {
+        return ((res.data && res.data.list) || []).map(function (o) {
+          if (o.work) o.work.image = resolveImageUrl(o.work.image);
+          return o;
+        });
+      })
+      .catch(function () {
+        return [];
+      });
+  };
+
   /** 我的默认收货地址 + 审核中的变更申请 */
   Api.getMyAddress = function () {
     return http('/api/addresses/mine')

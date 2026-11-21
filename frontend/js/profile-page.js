@@ -164,8 +164,10 @@
       '</a>' +
       '</div></div>' +
       (isSelf
-        ? '<h2 class="section-title">正在定制的订单</h2>' +
-          '<div class="custom-order-list" id="my-custom-orders"><p class="section-desc">加载中…</p></div>'
+        ? '<h2 class="section-title">正在定制的真实花饽饽订单</h2>' +
+          '<div class="custom-order-list" id="my-custom-orders"><p class="section-desc">加载中…</p></div>' +
+          '<h2 class="section-title">正在定制的3D打印产品</h2>' +
+          '<div class="custom-order-list" id="my-print-orders"><p class="section-desc">加载中…</p></div>'
         : '') +
       '<h2 class="section-title">' +
       (isSelf
@@ -187,7 +189,7 @@
       if (canEditAvatar) bindAvatarUpload(root, user);
       if (typeof Api.updateUserNickname === 'function') bindNameEdit(root, user);
       if (typeof Api.getMyAddress === 'function') bindAddressEdit(root);
-      startCustomOrderPolling();
+      startOrderPolling();
     }
     document.title = user.name + ' — 指间塑';
   }
@@ -200,6 +202,27 @@
 
   var customOrderTimer = null;
   var customOrderVisibilityBound = false;
+
+  /** 后端返回的是 ISO（UTC）时间串，卡片上转成本地时间显示 */
+  function formatOrderTime(value) {
+    if (!value) return '';
+    var d = new Date(value);
+    if (isNaN(d.getTime())) return String(value);
+    function pad(n) {
+      return n < 10 ? '0' + n : '' + n;
+    }
+    return (
+      d.getFullYear() +
+      '-' +
+      pad(d.getMonth() + 1) +
+      '-' +
+      pad(d.getDate()) +
+      ' ' +
+      pad(d.getHours()) +
+      ':' +
+      pad(d.getMinutes())
+    );
+  }
 
   function renderCustomOrders(list) {
     var wrap = document.getElementById('my-custom-orders');
@@ -226,7 +249,7 @@
           ZJS.escapeHtml(o.artisanName || '—') +
           '</p>' +
           '<p class="custom-order-meta">推送时间：' +
-          ZJS.escapeHtml(o.createdAt || '') +
+          ZJS.escapeHtml(formatOrderTime(o.createdAt)) +
           '</p>' +
           (o.ship && o.ship.address
             ? '<p class="custom-order-meta custom-order-meta--ship">配送至：' +
@@ -252,6 +275,64 @@
       .join('');
   }
 
+  /** 打印状态文案与后台「打印申请」一致：待处理 / 处理中 / 已完成 / 已拒绝 */
+  var PRINT_STATUS_LABEL = { pending: '待处理', handling: '处理中', done: '已完成', rejected: '已拒绝' };
+
+  function renderPrintOrders(list) {
+    var wrap = document.getElementById('my-print-orders');
+    if (!wrap) return;
+    if (!list || !list.length) {
+      wrap.innerHTML =
+        '<p class="section-desc">暂无 3D 打印申请。在数字化工作台点击「实体打印」提交申请后，这里会显示打印进度。</p>';
+      return;
+    }
+    wrap.innerHTML = list
+      .map(function (o) {
+        var w = o.work || {};
+        var thumb = workThumbSrc(w);
+        var status = o.status || 'pending';
+        var title = w.title || (o.workId ? '（作品已删除）' : '（未保存作品）');
+        return (
+          '<article class="custom-order-card">' +
+          (thumb
+            ? '<img class="custom-order-thumb" src="' + ZJS.escapeAttr(thumb) + '" alt="" loading="lazy">'
+            : '<div class="custom-order-thumb custom-order-thumb--print" aria-hidden="true">3D</div>') +
+          '<div class="custom-order-body">' +
+          '<h3>' +
+          ZJS.escapeHtml(title) +
+          '</h3>' +
+          '<p class="custom-order-meta">申请时间：' +
+          ZJS.escapeHtml(formatOrderTime(o.createdAt)) +
+          '</p>' +
+          (o.note ? '<p class="custom-order-meta">备注：' + ZJS.escapeHtml(o.note) + '</p>' : '') +
+          (o.ship && o.ship.address
+            ? '<p class="custom-order-meta custom-order-meta--ship">配送至：' +
+              ZJS.escapeHtml(o.ship.name || '') +
+              ' ' +
+              ZJS.escapeHtml(o.ship.phone || '') +
+              ' · ' +
+              ZJS.escapeHtml(o.ship.address) +
+              '</p>'
+            : '') +
+          '</div>' +
+          '<span class="custom-order-status is-' +
+          ZJS.escapeAttr(status) +
+          '">' +
+          ZJS.escapeHtml(o.statusLabel || PRINT_STATUS_LABEL[status] || status) +
+          '</span>' +
+          '</article>'
+        );
+      })
+      .join('');
+  }
+
+  function refreshPrintOrders() {
+    if (typeof Api.getMyPrintOrders !== 'function') return Promise.resolve();
+    return Api.getMyPrintOrders().then(function (list) {
+      renderPrintOrders(list || []);
+    });
+  }
+
   function refreshCustomOrders() {
     if (typeof Api.getMyCustomOrders !== 'function') return Promise.resolve();
     return Api.getMyCustomOrders().then(function (list) {
@@ -259,24 +340,24 @@
     });
   }
 
-  function startCustomOrderPolling() {
+  /** 「我的」页面的订单区块（花饽饽定制 + 3D 打印）共用一套轮询，保持状态与后台同步 */
+  function refreshAllOrders() {
     refreshCustomOrders();
+    refreshPrintOrders();
     if (addressRefreshFn) addressRefreshFn();
+  }
+
+  function startOrderPolling() {
+    refreshAllOrders();
     if (!customOrderVisibilityBound) {
       customOrderVisibilityBound = true;
       document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState !== 'hidden') {
-          refreshCustomOrders();
-          if (addressRefreshFn) addressRefreshFn();
-        }
+        if (document.visibilityState !== 'hidden') refreshAllOrders();
       });
     }
     if (customOrderTimer) return;
     customOrderTimer = setInterval(function () {
-      if (document.visibilityState !== 'hidden') {
-        refreshCustomOrders();
-        if (addressRefreshFn) addressRefreshFn();
-      }
+      if (document.visibilityState !== 'hidden') refreshAllOrders();
     }, 15000);
   }
 

@@ -14,6 +14,8 @@ admin.use(requireAdmin);
 admin.use(requireDb);
 
 const VALID_STATUS = ['pending', 'handling', 'done', 'rejected'];
+/** 与后台「打印申请」面板的状态按钮文案保持一致，用户侧直接复用 */
+const STATUS_LABEL = { pending: '待处理', handling: '处理中', done: '已完成', rejected: '已拒绝' };
 
 /** 快照体积上限，避免异常请求撑爆数据库 */
 const MAX_SNAPSHOT_BYTES = 512 * 1024;
@@ -117,6 +119,63 @@ router.post(
   })
 );
 
+/** GET /api/print-orders/mine — 当前用户的 3D 打印申请（状态与后台一致，不含三维快照大字段） */
+router.get(
+  '/mine',
+  requireDb,
+  requireUser,
+  asyncHandler(async function (req, res) {
+    const { printOrders, works } = dbm.schema;
+    const rows = await dbm.db
+      .select({
+        id: printOrders.id,
+        workId: printOrders.workId,
+        contact: printOrders.contact,
+        note: printOrders.note,
+        status: printOrders.status,
+        shipName: printOrders.shipName,
+        shipPhone: printOrders.shipPhone,
+        shipAddress: printOrders.shipAddress,
+        createdAt: printOrders.createdAt,
+        updatedAt: printOrders.updatedAt
+      })
+      .from(printOrders)
+      .where(eq(printOrders.userId, String(req.userId)))
+      .orderBy(desc(printOrders.createdAt))
+      .limit(100);
+
+    const workIds = Array.from(new Set(rows.map(function (o) { return o.workId; }).filter(Boolean)));
+    const workMap = {};
+    if (workIds.length) {
+      const ws = await dbm.db.select().from(works).where(inArray(works.id, workIds));
+      ws.forEach(function (w) { workMap[w.id] = w; });
+    }
+
+    res.json({
+      ok: true,
+      data: {
+        list: rows.map(function (o) {
+          const w = workMap[o.workId];
+          return {
+            id: o.id,
+            workId: o.workId,
+            contact: o.contact,
+            note: o.note,
+            status: o.status,
+            statusLabel: STATUS_LABEL[o.status] || o.status,
+            ship: { name: o.shipName || '', phone: o.shipPhone || '', address: o.shipAddress || '' },
+            createdAt: formatDateTime(o.createdAt),
+            updatedAt: formatDateTime(o.updatedAt),
+            work: w
+              ? { id: w.id, title: w.title, image: w.image || '', tag: w.tag || '' }
+              : null
+          };
+        })
+      }
+    });
+  })
+);
+
 /** GET /api/admin/print-orders — 打印申请列表（含作品、用户、收货地址、三维快照） */
 admin.get(
   '/',
@@ -192,4 +251,4 @@ admin.patch(
   })
 );
 
-module.exports = { publicRouter: router, adminRouter: admin };
+module.exports = { publicRouter: router, adminRouter: admin, VALID_STATUS, STATUS_LABEL };

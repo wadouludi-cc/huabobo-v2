@@ -404,6 +404,27 @@ async function req(method, path, body, token) {
   r = await req('GET', '/api/admin/print-orders', undefined, token);
   check('print orders admin 200', r.status === 200 && !!(r.data.data && Array.isArray(r.data.data.list)), r.data);
 
+  // 「我的」页面：3D 打印申请列表，状态必须跟后台设置一致
+  r = await req('GET', '/api/print-orders/mine', undefined, utoken);
+  const myPrints = (r.data.data && r.data.data.list) || [];
+  check('my print orders 200', r.status === 200 && myPrints.length >= 1, r.data);
+  check('my print order carries label + ship', myPrints.length > 0 &&
+    myPrints[0].status === 'pending' && myPrints[0].statusLabel === '待处理' &&
+    !!myPrints[0].ship.address, myPrints[0]);
+  check('my print order omits snapshot', myPrints.length > 0 && myPrints[0].snapshot === undefined, myPrints[0]);
+
+  if (myPrints.length) {
+    r = await req('PATCH', '/api/admin/print-orders/' + myPrints[0].id, { status: 'handling' }, token);
+    check('admin print status update 200', r.status === 200, r);
+    r = await req('GET', '/api/print-orders/mine', undefined, utoken);
+    const synced = ((r.data.data && r.data.data.list) || [])[0] || {};
+    check(
+      'my print order syncs admin status',
+      synced.status === 'handling' && synced.statusLabel === '处理中',
+      synced
+    );
+  }
+
   r = await req('DELETE', '/api/admin/studio-models/' + mid, undefined, token);
   check('model delete 200', r.status === 200, r);
   r = await req('DELETE', '/api/admin/studio-model-categories/' + cid, undefined, token);

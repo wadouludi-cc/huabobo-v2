@@ -1761,7 +1761,7 @@ a.gallery-item:hover,
 }
 
 .custom-order-meta--ship {
-  word-break: break-all;
+  overflow-wrap: anywhere;
 }
 
 .custom-order-ship-note {
@@ -1828,6 +1828,22 @@ a.gallery-item:hover,
   background: var(--bg-alt);
 }
 
+/* 3D 打印申请没有作品封面时，用「3D」占位块 */
+.custom-order-thumb--print {
+  display: grid;
+  place-items: center;
+  font-size: 0.86rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  color: var(--ink-soft);
+  border: 1px dashed var(--border);
+}
+
+/* 「正在定制的真实花饽饽订单」与「正在定制的3D打印产品」两个区块之间留白 */
+.custom-order-list + .section-title {
+  margin-top: 40px;
+}
+
 .custom-order-body {
   flex: 1;
   min-width: 0;
@@ -1876,9 +1892,36 @@ a.gallery-item:hover,
   color: #1f7a4d;
 }
 
+/* 3D 打印申请状态：与后台「打印申请」的四个状态一一对应 */
+.custom-order-status.is-handling {
+  background: #e3eefc;
+  color: #1d5aa8;
+}
+
+.custom-order-status.is-done {
+  background: #e3f5ea;
+  color: #1f7a4d;
+}
+
+.custom-order-status.is-rejected {
+  background: #fbe7e7;
+  color: #a63a3a;
+}
+
 @media (max-width: 560px) {
   .custom-order-card {
     flex-wrap: wrap;
+    align-items: flex-start;
+  }
+
+  .custom-order-body {
+    flex: 1 1 calc(100% - 78px);
+  }
+
+  /* 窄屏把状态徽标挪到正文下方，避免被长地址挤变形 */
+  .custom-order-status {
+    order: 1;
+    margin-left: 78px;
   }
 }
 
