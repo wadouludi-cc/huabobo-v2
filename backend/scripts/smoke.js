@@ -372,8 +372,33 @@ async function req(method, path, body, token) {
 
   await req('DELETE', '/api/works/' + swid, undefined, utoken);
 
+  // 回归：没填收货地址时打印申请必须被拒，并返回可识别的错误码
+  r = await req('POST', '/api/print-orders', { contact: '13800000000' }, utoken);
+  check(
+    'print order without address 400',
+    r.status === 400 && r.data && r.data.code === 'ADDRESS_REQUIRED',
+    r
+  );
+
+  // 打印按「我的」页面填写的收货地址寄出，首次保存直接生效
+  const ciAddress = {
+    name: 'CI 收货人',
+    phone: '13800000000',
+    address: '山东省烟台市芝罘区 CI 路 1 号'
+  };
+  r = await req('PUT', '/api/addresses/mine', ciAddress, utoken);
+  check('address saved 200', r.status === 200 && !!(r.data.data && r.data.data.mode === 'saved'), r);
+
   r = await req('POST', '/api/print-orders', { contact: '13800000000', note: 'smoke' }, utoken);
   check('print order 201', r.status === 201 && !!(r.data.data && r.data.data.id), r);
+  check(
+    'print order snapshots address',
+    !!(r.data.data && r.data.data.ship) &&
+      r.data.data.ship.name === ciAddress.name &&
+      r.data.data.ship.phone === ciAddress.phone &&
+      r.data.data.ship.address === ciAddress.address,
+    r.data.data
+  );
   r = await req('POST', '/api/print-orders', {}, utoken);
   check('print order no contact 400', r.status === 400, r);
   r = await req('GET', '/api/admin/print-orders', undefined, token);
