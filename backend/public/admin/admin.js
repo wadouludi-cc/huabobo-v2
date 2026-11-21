@@ -306,6 +306,7 @@
     loginScreen.hidden = true;
     app.hidden = false;
     bootModelThumbModule().catch(function () {});
+    startAddressBadgePolling();
   }
 
   function escapeHtml(s) {
@@ -2653,6 +2654,170 @@
     orderPreviewHandles = [];
   }
 
+  /* ===== 收货地址审核 ===== */
+  var addressBadgeTimer = null;
+
+  function addressUserLabel(u) {
+    return (u && (u.nickname || u.handle || u.username)) || '—';
+  }
+
+  function fmtAddressCell(name, phone, address) {
+    if (!address) return '—';
+    return (
+      escapeHtml(name || '') +
+      ' ' +
+      escapeHtml(phone || '') +
+      '<br><span class="address-line">' +
+      escapeHtml(address) +
+      '</span>'
+    );
+  }
+
+  function refreshAddressBadge() {
+    return api('/api/admin/addresses/pending-count')
+      .then(function (res) {
+        var n = Number((res.data && res.data.count) || 0);
+        var badge = document.getElementById('address-nav-badge');
+        if (badge) {
+          badge.textContent = n > 99 ? '99+' : String(n);
+          badge.hidden = n <= 0;
+        }
+        return n;
+      })
+      .catch(function () {
+        return 0;
+      });
+  }
+
+  function startAddressBadgePolling() {
+    refreshAddressBadge();
+    if (addressBadgeTimer) return;
+    addressBadgeTimer = setInterval(refreshAddressBadge, 20000);
+  }
+
+  function reviewAddressRequest(id, action, btn) {
+    if (btn) btn.disabled = true;
+    return api('/api/admin/addresses/requests/' + encodeURIComponent(id), {
+      method: 'PATCH',
+      body: { action: action }
+    })
+      .then(function (res) {
+        if (btn) btn.disabled = false;
+        var msg = (res.data && res.data.message) || '已处理';
+        loadOrders();
+        return loadAddresses().then(function () {
+          var hint = document.getElementById('address-pending-hint');
+          if (!hint) return;
+          hint.hidden = false;
+          hint.textContent = msg;
+          setTimeout(function () {
+            hint.hidden = true;
+          }, 4000);
+        });
+      })
+      .catch(function (err) {
+        if (btn) btn.disabled = false;
+        alert(err.message || '操作失败');
+      });
+  }
+
+  function loadAddresses() {
+    return api('/api/admin/addresses')
+      .then(function (res) {
+        var d = (res && res.data) || {};
+        var pending = d.pending || [];
+        var list = d.list || [];
+        var pendingEl = document.getElementById('address-pending-list');
+        var usersEl = document.getElementById('address-users-list');
+        var hint = document.getElementById('address-pending-hint');
+        var badge = document.getElementById('address-nav-badge');
+
+        if (badge) {
+          badge.textContent = pending.length > 99 ? '99+' : String(pending.length);
+          badge.hidden = pending.length <= 0;
+        }
+        if (hint) {
+          if (pending.length > 0) {
+            hint.hidden = false;
+            hint.innerHTML =
+              '有 <strong>' +
+              pending.length +
+              '</strong> 位用户提交了收货地址修改申请，请及时审核。同意后该用户新订单使用新地址，进行中的订单仍用下单时的地址。';
+          } else {
+            hint.hidden = true;
+            hint.innerHTML = '';
+          }
+        }
+
+        if (pendingEl) {
+          pendingEl.innerHTML = pending.length
+            ? '<table class="data-table"><thead><tr><th>用户</th><th>原地址</th><th>新地址</th><th>申请时间</th><th class="cell-actions">操作</th></tr></thead><tbody>' +
+              pending
+                .map(function (r) {
+                  return (
+                    '<tr><td>' +
+                    escapeHtml(addressUserLabel(r.user)) +
+                    '</td><td class="address-cell">' +
+                    fmtAddressCell(r.oldName, r.oldPhone, r.oldAddress) +
+                    '</td><td class="address-cell address-cell--new">' +
+                    fmtAddressCell(r.newName, r.newPhone, r.newAddress) +
+                    '</td><td>' +
+                    escapeHtml(r.createdAt || '') +
+                    '</td><td class="cell-actions"><button type="button" class="btn btn-primary" data-addr-approve="' +
+                    escapeHtml(r.id) +
+                    '">同意</button><button type="button" class="btn btn-ghost" data-addr-reject="' +
+                    escapeHtml(r.id) +
+                    '">不同意</button></td></tr>'
+                  );
+                })
+                .join('') +
+              '</tbody></table>'
+            : '<p class="empty-hint">暂无待审核的地址修改申请</p>';
+
+          pendingEl.querySelectorAll('[data-addr-approve]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              if (!confirm('同意后该用户的新地址立即生效（仅影响之后的新订单），确定同意？')) return;
+              reviewAddressRequest(btn.getAttribute('data-addr-approve'), 'approve', btn);
+            });
+          });
+          pendingEl.querySelectorAll('[data-addr-reject]').forEach(function (btn) {
+            btn.addEventListener('click', function () {
+              if (!confirm('不同意后该用户继续使用原收货地址，确定驳回？')) return;
+              reviewAddressRequest(btn.getAttribute('data-addr-reject'), 'reject', btn);
+            });
+          });
+        }
+
+        if (usersEl) {
+          usersEl.innerHTML = list.length
+            ? '<table class="data-table"><thead><tr><th>用户</th><th>收货人</th><th>手机号</th><th>收货地址</th><th>更新时间</th></tr></thead><tbody>' +
+              list
+                .map(function (a) {
+                  return (
+                    '<tr><td>' +
+                    escapeHtml(addressUserLabel(a.user)) +
+                    '</td><td>' +
+                    escapeHtml(a.name || '') +
+                    '</td><td>' +
+                    escapeHtml(a.phone || '') +
+                    '</td><td class="address-cell"><span class="address-line">' +
+                    escapeHtml(a.address || '') +
+                    '</span></td><td>' +
+                    escapeHtml(a.updatedAt || '') +
+                    '</td></tr>'
+                  );
+                })
+                .join('') +
+              '</tbody></table>'
+            : '<p class="empty-hint">暂无用户填写收货地址</p>';
+        }
+      })
+      .catch(function (err) {
+        var pendingEl = document.getElementById('address-pending-list');
+        if (pendingEl) pendingEl.innerHTML = '<p class="empty-hint">加载失败：' + escapeHtml(err.message || '') + '</p>';
+      });
+  }
+
   function loadOrders() {
     return api('/api/admin/custom-orders')
       .then(function (res) {
@@ -2664,7 +2829,7 @@
           return;
         }
         wrap.innerHTML =
-          '<table class="data-table"><thead><tr><th class="cell-thumb">作品</th><th>作品名</th><th>用户</th><th>手艺人</th><th>状态</th><th>推送时间</th><th class="cell-actions">操作</th></tr></thead><tbody>' +
+          '<table class="data-table"><thead><tr><th class="cell-thumb">作品</th><th>作品名</th><th>用户</th><th>收货地址</th><th>手艺人</th><th>状态</th><th>推送时间</th><th class="cell-actions">操作</th></tr></thead><tbody>' +
           list
             .map(function (o) {
               var w = o.work || {};
@@ -2678,6 +2843,8 @@
                 escapeHtml(w.title || '作品已删除') +
                 '</td><td>' +
                 escapeHtml((o.user && (o.user.nickname || o.user.handle)) || '—') +
+                '</td><td class="address-cell">' +
+                fmtAddressCell((o.ship && o.ship.name) || '', (o.ship && o.ship.phone) || '', (o.ship && o.ship.address) || '') +
                 '</td><td>' +
                 escapeHtml(o.artisanName || '—') +
                 '</td><td><span class="order-status-tag is-' +
@@ -2770,6 +2937,30 @@
       );
     }).join('');
 
+    var ship = o.ship || {};
+    var addressHtml = ship.address
+      ? escapeHtml((ship.name || '') + ' ' + (ship.phone || '')) + '<br>' + escapeHtml(ship.address)
+      : '—';
+    var addressNote = '';
+    if (o.currentAddress && o.currentAddress.address && o.currentAddress.address !== ship.address) {
+      addressNote +=
+        '<p class="order-address-note">用户当前默认地址：' +
+        escapeHtml(o.currentAddress.name + ' ' + o.currentAddress.phone) +
+        ' · ' +
+        escapeHtml(o.currentAddress.address) +
+        '</p>';
+    }
+    if (o.pendingAddressChange) {
+      var pc = o.pendingAddressChange;
+      addressNote +=
+        '<p class="order-address-note is-pending">该用户提交了地址修改申请，待审核：' +
+        escapeHtml(pc.name + ' ' + pc.phone) +
+        ' · ' +
+        escapeHtml(pc.address) +
+        '（同意后仅影响新订单，进行中的订单仍用本单地址）' +
+        '<button type="button" class="btn btn-ghost btn-sm" data-goto-addresses="1">去地址审核</button></p>';
+    }
+
     body.innerHTML =
       '<div class="order-detail-grid">' +
       '<div class="order-detail-photo"><h4>作品照片</h4>' +
@@ -2781,12 +2972,14 @@
       '<dl class="order-info-list">' +
       '<dt>作品</dt><dd>' + escapeHtml(w.title || '作品已删除') + '</dd>' +
       '<dt>用户</dt><dd>' + escapeHtml((o.user && (o.user.nickname || o.user.handle)) || '—') + '</dd>' +
+      '<dt>收货地址</dt><dd>' + addressHtml + '</dd>' +
       '<dt>手艺人</dt><dd>' + escapeHtml(o.artisanName || '—') + '</dd>' +
       '<dt>推送时间</dt><dd>' + escapeHtml(o.createdAt || '') + '</dd>' +
       '<dt>备注</dt><dd>' + escapeHtml(o.note || '—') + '</dd>' +
       '<dt>当前状态</dt><dd><span class="order-status-tag is-' + escapeHtml(o.status) + '">' +
       escapeHtml(o.statusLabel || orderStatusLabel(o.status)) + '</span></dd>' +
       '</dl>' +
+      addressNote +
       '<h4>更新状态</h4>' +
       '<div class="order-status-actions" id="order-status-actions">' + statusBtns + '</div>' +
       '</div></div>' +
@@ -2798,6 +2991,14 @@
         updateOrderStatus(o.id, btn.getAttribute('data-order-status'), btn);
       });
     });
+
+    var gotoAddrBtn = body.querySelector('[data-goto-addresses]');
+    if (gotoAddrBtn) {
+      gotoAddrBtn.addEventListener('click', function () {
+        closeOrderDetail();
+        switchPanel('addresses');
+      });
+    }
 
     var grid = document.getElementById('order-model-grid');
     if (!grid) return;
@@ -3033,7 +3234,8 @@
     humans: loadDigitalHumans,
     comments: loadComments,
     prints: loadPrints,
-    orders: loadOrders
+    orders: loadOrders,
+    addresses: loadAddresses
   };
 
   var panelTitles = {
@@ -3046,7 +3248,8 @@
     humans: '数字人管理',
     comments: '作品留言',
     prints: '打印申请',
-    orders: '订单管理'
+    orders: '订单管理',
+    addresses: '地址审核'
   };
 
   function switchPanel(name) {
@@ -3258,6 +3461,10 @@
   });
   onEl('btn-orders-refresh', 'click', function () {
     loadOrders();
+  });
+  onEl('btn-addresses-refresh', 'click', function () {
+    loadAddresses();
+    refreshAddressBadge();
   });
   onEl('order-detail-modal', 'click', function (e) {
     if (e.target === this) closeOrderDetail();

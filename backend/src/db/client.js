@@ -119,6 +119,14 @@ async function connectDb() {
       await pgPool.query("CREATE TABLE IF NOT EXISTS custom_orders (id TEXT PRIMARY KEY NOT NULL, work_id TEXT DEFAULT '' NOT NULL, user_id TEXT DEFAULT '' NOT NULL, artisan_id TEXT DEFAULT '' NOT NULL, artisan_name TEXT DEFAULT '' NOT NULL, note TEXT DEFAULT '' NOT NULL, status TEXT DEFAULT 'pending' NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)");
       await pgPool.query("CREATE INDEX IF NOT EXISTS custom_orders_user_idx ON custom_orders (user_id)");
       await pgPool.query("CREATE INDEX IF NOT EXISTS custom_orders_status_idx ON custom_orders (status)");
+      await pgPool.query("ALTER TABLE custom_orders ADD COLUMN IF NOT EXISTS ship_name TEXT DEFAULT '' NOT NULL");
+      await pgPool.query("ALTER TABLE custom_orders ADD COLUMN IF NOT EXISTS ship_phone TEXT DEFAULT '' NOT NULL");
+      await pgPool.query("ALTER TABLE custom_orders ADD COLUMN IF NOT EXISTS ship_address TEXT DEFAULT '' NOT NULL");
+      await pgPool.query("CREATE TABLE IF NOT EXISTS user_addresses (id TEXT PRIMARY KEY NOT NULL, user_id TEXT DEFAULT '' NOT NULL, name TEXT DEFAULT '' NOT NULL, phone TEXT DEFAULT '' NOT NULL, address TEXT DEFAULT '' NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)");
+      await pgPool.query("CREATE UNIQUE INDEX IF NOT EXISTS user_addresses_user_idx ON user_addresses (user_id)");
+      await pgPool.query("CREATE TABLE IF NOT EXISTS address_change_requests (id TEXT PRIMARY KEY NOT NULL, user_id TEXT DEFAULT '' NOT NULL, status TEXT DEFAULT 'pending' NOT NULL, old_name TEXT DEFAULT '' NOT NULL, old_phone TEXT DEFAULT '' NOT NULL, old_address TEXT DEFAULT '' NOT NULL, new_name TEXT DEFAULT '' NOT NULL, new_phone TEXT DEFAULT '' NOT NULL, new_address TEXT DEFAULT '' NOT NULL, reviewed_by TEXT DEFAULT '' NOT NULL, reviewed_at BIGINT, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)");
+      await pgPool.query("CREATE INDEX IF NOT EXISTS address_change_requests_user_idx ON address_change_requests (user_id)");
+      await pgPool.query("CREATE INDEX IF NOT EXISTS address_change_requests_status_idx ON address_change_requests (status)");
     } catch (e) {
       console.warn('[db] 兼容列检查跳过', e.message);
     }
@@ -158,6 +166,16 @@ async function connectDb() {
       sqliteHandle.exec("CREATE TABLE IF NOT EXISTS custom_orders (id TEXT PRIMARY KEY NOT NULL, work_id TEXT DEFAULT '' NOT NULL, user_id TEXT DEFAULT '' NOT NULL, artisan_id TEXT DEFAULT '' NOT NULL, artisan_name TEXT DEFAULT '' NOT NULL, note TEXT DEFAULT '' NOT NULL, status TEXT DEFAULT 'pending' NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
       sqliteHandle.exec("CREATE INDEX IF NOT EXISTS custom_orders_user_idx ON custom_orders (user_id)");
       sqliteHandle.exec("CREATE INDEX IF NOT EXISTS custom_orders_status_idx ON custom_orders (status)");
+      var ocols = sqliteHandle.prepare('PRAGMA table_info(custom_orders)').all();
+      var ocolNames = (ocols || []).map(function (c) { return c && c.name; });
+      if (ocolNames.indexOf('ship_name') < 0) sqliteHandle.exec("ALTER TABLE custom_orders ADD COLUMN ship_name TEXT DEFAULT '' NOT NULL");
+      if (ocolNames.indexOf('ship_phone') < 0) sqliteHandle.exec("ALTER TABLE custom_orders ADD COLUMN ship_phone TEXT DEFAULT '' NOT NULL");
+      if (ocolNames.indexOf('ship_address') < 0) sqliteHandle.exec("ALTER TABLE custom_orders ADD COLUMN ship_address TEXT DEFAULT '' NOT NULL");
+      sqliteHandle.exec("CREATE TABLE IF NOT EXISTS user_addresses (id TEXT PRIMARY KEY NOT NULL, user_id TEXT DEFAULT '' NOT NULL, name TEXT DEFAULT '' NOT NULL, phone TEXT DEFAULT '' NOT NULL, address TEXT DEFAULT '' NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
+      sqliteHandle.exec("CREATE UNIQUE INDEX IF NOT EXISTS user_addresses_user_idx ON user_addresses (user_id)");
+      sqliteHandle.exec("CREATE TABLE IF NOT EXISTS address_change_requests (id TEXT PRIMARY KEY NOT NULL, user_id TEXT DEFAULT '' NOT NULL, status TEXT DEFAULT 'pending' NOT NULL, old_name TEXT DEFAULT '' NOT NULL, old_phone TEXT DEFAULT '' NOT NULL, old_address TEXT DEFAULT '' NOT NULL, new_name TEXT DEFAULT '' NOT NULL, new_phone TEXT DEFAULT '' NOT NULL, new_address TEXT DEFAULT '' NOT NULL, reviewed_by TEXT DEFAULT '' NOT NULL, reviewed_at INTEGER, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
+      sqliteHandle.exec("CREATE INDEX IF NOT EXISTS address_change_requests_user_idx ON address_change_requests (user_id)");
+      sqliteHandle.exec("CREATE INDEX IF NOT EXISTS address_change_requests_status_idx ON address_change_requests (status)");
     } catch (e) {
       console.warn('[db] 兼容列检查跳过', e.message);
     }

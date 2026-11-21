@@ -1,5 +1,5 @@
 const express = require('express');
-const { eq, desc, inArray } = require('drizzle-orm');
+const { eq, and, desc, inArray } = require('drizzle-orm');
 const dbm = require('../db/client');
 const { newId, nowMs } = require('../db/helpers');
 const asyncHandler = require('../utils/asyncHandler');
@@ -65,6 +65,21 @@ router.post(
       ? artisanRows[0].name
       : String((req.body && req.body.artisanName) || '').trim();
 
+    /* 下单使用用户默认收货地址，并快照进订单：之后改地址不影响进行中的订单 */
+    const addrRows = await dbm.db
+      .select()
+      .from(dbm.schema.userAddresses)
+      .where(eq(dbm.schema.userAddresses.userId, String(req.userId)))
+      .limit(1);
+    const addr = addrRows[0];
+    if (!addr || !addr.name || !addr.phone || !addr.address) {
+      return res.status(400).json({
+        ok: false,
+        code: 'ADDRESS_REQUIRED',
+        message: '请先在「我的」主页添加收货地址，订单会自动使用该地址'
+      });
+    }
+
     const now = nowMs();
     const row = {
       id: newId(),
@@ -74,6 +89,9 @@ router.post(
       artisanName: artisanName,
       note: note,
       status: 'pending',
+      shipName: addr.name,
+      shipPhone: addr.phone,
+      shipAddress: addr.address,
       createdAt: now,
       updatedAt: now
     };
@@ -85,7 +103,8 @@ router.post(
         id: row.id,
         status: row.status,
         statusLabel: STATUS_LABEL[row.status],
-        artisanName: row.artisanName
+        artisanName: row.artisanName,
+        ship: { name: row.shipName, phone: row.shipPhone, address: row.shipAddress }
       }
     });
   })
@@ -124,6 +143,7 @@ router.get(
             note: o.note,
             status: o.status,
             statusLabel: STATUS_LABEL[o.status] || o.status,
+            ship: { name: o.shipName || '', phone: o.shipPhone || '', address: o.shipAddress || '' },
             createdAt: formatDateTime(o.createdAt),
             updatedAt: formatDateTime(o.updatedAt),
             work: compactWork(workMap[o.workId])
@@ -173,6 +193,7 @@ admin.get(
             note: o.note,
             status: o.status,
             statusLabel: STATUS_LABEL[o.status] || o.status,
+            ship: { name: o.shipName || '', phone: o.shipPhone || '', address: o.shipAddress || '' },
             createdAt: formatDateTime(o.createdAt),
             updatedAt: formatDateTime(o.updatedAt),
             work: compactWork(w),
@@ -216,6 +237,22 @@ admin.get(
       if (us.length) user = { id: us[0].id, nickname: us[0].nickname, handle: us[0].handle };
     }
 
+    /* 地址变更审核状态：管理员在订单详情里能直接看到是否有待审核的新地址 */
+    const { userAddresses, addressChangeRequests } = dbm.schema;
+    const addrRows = await dbm.db
+      .select()
+      .from(userAddresses)
+      .where(eq(userAddresses.userId, o.userId))
+      .limit(1);
+    const currentAddr = addrRows[0] || null;
+    const reqRows = await dbm.db
+      .select()
+      .from(addressChangeRequests)
+      .where(and(eq(addressChangeRequests.userId, o.userId), eq(addressChangeRequests.status, 'pending')))
+      .orderBy(desc(addressChangeRequests.createdAt))
+      .limit(1);
+    const pendingReq = reqRows[0] || null;
+
     res.json({
       ok: true,
       data: {
@@ -227,6 +264,19 @@ admin.get(
         note: o.note,
         status: o.status,
         statusLabel: STATUS_LABEL[o.status] || o.status,
+        ship: { name: o.shipName || '', phone: o.shipPhone || '', address: o.shipAddress || '' },
+        currentAddress: currentAddr
+          ? { name: currentAddr.name, phone: currentAddr.phone, address: currentAddr.address }
+          : null,
+        pendingAddressChange: pendingReq
+          ? {
+              id: pendingReq.id,
+              name: pendingReq.newName,
+              phone: pendingReq.newPhone,
+              address: pendingReq.newAddress,
+              createdAt: formatDateTime(pendingReq.createdAt)
+            }
+          : null,
         createdAt: formatDateTime(o.createdAt),
         updatedAt: formatDateTime(o.updatedAt),
         work: work,

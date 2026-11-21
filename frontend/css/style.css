@@ -1646,6 +1646,138 @@ a.gallery-item:hover,
   gap: 8px;
 }
 
+/* 收货地址：入口按钮 + 摘要 + 编辑表单 */
+.profile-address-btn {
+  flex-shrink: 0;
+}
+
+.profile-address-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  max-width: 640px;
+  margin-bottom: 12px;
+  padding: 8px 12px;
+  font-size: 0.86rem;
+  line-height: 1.5;
+  color: var(--ink-soft);
+  background: var(--bg-alt, #f8fafc);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-sm, 10px);
+}
+
+.profile-address-summary[hidden] {
+  display: none !important;
+}
+
+.profile-address-summary__label {
+  font-weight: 600;
+  color: var(--ink, #1f2937);
+}
+
+.profile-address-summary__value {
+  word-break: break-all;
+}
+
+.profile-address-badge {
+  padding: 2px 10px;
+  font-size: 0.76rem;
+  border-radius: 999px;
+  background: #fdf1d6;
+  color: #8a6414;
+}
+
+.profile-address-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  max-width: 420px;
+  margin-bottom: 14px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+  background: var(--bg-alt, #f8fafc);
+}
+
+.profile-address-panel[hidden] {
+  display: none !important;
+}
+
+.profile-address-panel__title {
+  margin: 0;
+  font-size: 0.95rem;
+  font-weight: 600;
+}
+
+.profile-address-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--ink-soft);
+}
+
+.profile-address-field input,
+.profile-address-field textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 8px 12px;
+  font-family: inherit;
+  font-size: 0.95rem;
+  color: var(--ink, #1f2937);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm, 10px);
+  resize: vertical;
+}
+
+.profile-address-field input:focus,
+.profile-address-field textarea:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.profile-address-panel__hint {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.6;
+  color: var(--ink-soft);
+}
+
+.profile-address-panel__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.profile-address-panel__msg {
+  min-height: 1.2em;
+  margin: 0;
+  font-size: 0.82rem;
+  line-height: 1.5;
+  color: var(--accent);
+}
+
+.custom-order-meta--ship {
+  word-break: break-all;
+}
+
+.custom-order-ship-note {
+  color: var(--ink-soft);
+  opacity: 0.85;
+}
+
+.artisan-order-ship {
+  line-height: 1.6;
+  word-break: break-all;
+}
+
+.artisan-order-ship a {
+  color: var(--accent);
+}
+
 .author-profile-name {
   font-size: 0.95rem;
   color: var(--ink-soft);

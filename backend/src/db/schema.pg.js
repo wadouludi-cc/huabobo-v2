@@ -169,12 +169,56 @@ const customOrders = pgTable(
     artisanName: text('artisan_name').notNull().default(''),
     note: text('note').notNull().default(''),
     status: text('status').notNull().default('pending'),
+    /** 下单时快照的收货信息（之后用户改地址不影响已进行中的订单） */
+    shipName: text('ship_name').notNull().default(''),
+    shipPhone: text('ship_phone').notNull().default(''),
+    shipAddress: text('ship_address').notNull().default(''),
     createdAt: bigint('created_at', { mode: 'number' }).notNull(),
     updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
   },
   (t) => [
     index('custom_orders_user_idx').on(t.userId),
     index('custom_orders_status_idx').on(t.status)
+  ]
+);
+
+/** 用户默认收货地址：新订单自动采用，一个用户一条 */
+const userAddresses = pgTable(
+  'user_addresses',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    name: text('name').notNull().default(''),
+    phone: text('phone').notNull().default(''),
+    address: text('address').notNull().default(''),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
+  },
+  (t) => [uniqueIndex('user_addresses_user_idx').on(t.userId)]
+);
+
+/** 收货地址变更申请：用户改地址后需管理员审核，通过后才生效 */
+const addressChangeRequests = pgTable(
+  'address_change_requests',
+  {
+    id: text('id').primaryKey(),
+    userId: text('user_id').notNull(),
+    /** pending 待审核 / approved 已同意 / rejected 已驳回 */
+    status: text('status').notNull().default('pending'),
+    oldName: text('old_name').notNull().default(''),
+    oldPhone: text('old_phone').notNull().default(''),
+    oldAddress: text('old_address').notNull().default(''),
+    newName: text('new_name').notNull().default(''),
+    newPhone: text('new_phone').notNull().default(''),
+    newAddress: text('new_address').notNull().default(''),
+    reviewedBy: text('reviewed_by').notNull().default(''),
+    reviewedAt: bigint('reviewed_at', { mode: 'number' }),
+    createdAt: bigint('created_at', { mode: 'number' }).notNull(),
+    updatedAt: bigint('updated_at', { mode: 'number' }).notNull()
+  },
+  (t) => [
+    index('address_change_requests_user_idx').on(t.userId),
+    index('address_change_requests_status_idx').on(t.status)
   ]
 );
 
@@ -190,5 +234,7 @@ module.exports = {
   digitalHumans,
   aboutPages,
   printOrders,
-  customOrders
+  customOrders,
+  userAddresses,
+  addressChangeRequests
 };

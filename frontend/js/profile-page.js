@@ -98,7 +98,29 @@
       (isSelf && typeof Api.updateUserNickname === 'function'
         ? '<button type="button" id="profile-edit-name-btn" class="btn btn-outline btn-sm profile-edit-name-btn">修改昵称</button>'
         : '') +
+      (isSelf && typeof Api.getMyAddress === 'function'
+        ? '<button type="button" id="profile-address-btn" class="btn btn-outline btn-sm profile-address-btn">添加收货地址</button>'
+        : '') +
       '</div>' +
+      (isSelf && typeof Api.getMyAddress === 'function'
+        ? '<div id="profile-address-summary" class="profile-address-summary">加载收货地址…</div>' +
+          '<div id="profile-address-panel" class="profile-address-panel" hidden>' +
+          '<p class="profile-address-panel__title">收货地址</p>' +
+          '<label class="profile-address-field"><span>收货人姓名</span>' +
+          '<input type="text" id="addr-name" maxlength="30" placeholder="请输入真实姓名" autocomplete="name"></label>' +
+          '<label class="profile-address-field"><span>手机号</span>' +
+          '<input type="tel" id="addr-phone" maxlength="11" inputmode="numeric" placeholder="11 位手机号" autocomplete="tel"></label>' +
+          '<label class="profile-address-field"><span>详细地址</span>' +
+          '<textarea id="addr-address" rows="3" maxlength="200" placeholder="省 / 市 / 区（县）+ 街道门牌号"></textarea></label>' +
+          '<p class="profile-address-panel__hint">首次填写立即生效；之后再修改需要管理员审核，审核期间新订单仍使用原地址。进行中的订单不支持更换地址。</p>' +
+          '<div class="profile-address-panel__actions">' +
+          '<button type="button" id="addr-save" class="btn btn-primary btn-sm">保存</button>' +
+          '<button type="button" id="addr-cancel" class="btn btn-outline btn-sm">取消</button>' +
+          '<button type="button" id="addr-cancel-request" class="btn btn-outline btn-sm" hidden>撤销修改申请</button>' +
+          '</div>' +
+          '<p id="addr-msg" class="profile-address-panel__msg"></p>' +
+          '</div>'
+        : '') +
       '<p class="author-profile-name" id="profile-display-name">' +
       ZJS.escapeHtml(user.name) +
       (isSelf
@@ -164,6 +186,7 @@
       bindWorkThumbErrors(root);
       if (canEditAvatar) bindAvatarUpload(root, user);
       if (typeof Api.updateUserNickname === 'function') bindNameEdit(root, user);
+      if (typeof Api.getMyAddress === 'function') bindAddressEdit(root);
       startCustomOrderPolling();
     }
     document.title = user.name + ' — 指间塑';
@@ -205,6 +228,18 @@
           '<p class="custom-order-meta">推送时间：' +
           ZJS.escapeHtml(o.createdAt || '') +
           '</p>' +
+          (o.ship && o.ship.address
+            ? '<p class="custom-order-meta custom-order-meta--ship">配送至：' +
+              ZJS.escapeHtml(o.ship.name || '') +
+              ' ' +
+              ZJS.escapeHtml(o.ship.phone || '') +
+              ' · ' +
+              ZJS.escapeHtml(o.ship.address) +
+              (o.status && o.status !== 'completed'
+                ? '<span class="custom-order-ship-note">（进行中订单不支持更换地址）</span>'
+                : '') +
+              '</p>'
+            : '') +
           '</div>' +
           '<span class="custom-order-status is-' +
           ZJS.escapeAttr(o.status || 'pending') +
@@ -226,15 +261,22 @@
 
   function startCustomOrderPolling() {
     refreshCustomOrders();
+    if (addressRefreshFn) addressRefreshFn();
     if (!customOrderVisibilityBound) {
       customOrderVisibilityBound = true;
       document.addEventListener('visibilitychange', function () {
-        if (document.visibilityState !== 'hidden') refreshCustomOrders();
+        if (document.visibilityState !== 'hidden') {
+          refreshCustomOrders();
+          if (addressRefreshFn) addressRefreshFn();
+        }
       });
     }
     if (customOrderTimer) return;
     customOrderTimer = setInterval(function () {
-      if (document.visibilityState !== 'hidden') refreshCustomOrders();
+      if (document.visibilityState !== 'hidden') {
+        refreshCustomOrders();
+        if (addressRefreshFn) addressRefreshFn();
+      }
     }, 15000);
   }
 
@@ -464,6 +506,148 @@
         applyNameToPage((res.user && res.user.name) || next);
         hideEdit();
       });
+    });
+  }
+
+  var addressRefreshFn = null;
+
+  /** 收货地址：首次填写直接生效，之后修改需管理员审核 */
+  function bindAddressEdit(root) {
+    var btn = root.querySelector('#profile-address-btn');
+    var panel = root.querySelector('#profile-address-panel');
+    var summary = root.querySelector('#profile-address-summary');
+    var nameInput = root.querySelector('#addr-name');
+    var phoneInput = root.querySelector('#addr-phone');
+    var addrInput = root.querySelector('#addr-address');
+    var saveBtn = root.querySelector('#addr-save');
+    var cancelBtn = root.querySelector('#addr-cancel');
+    var cancelReqBtn = root.querySelector('#addr-cancel-request');
+    var msgEl = root.querySelector('#addr-msg');
+    if (!btn || !panel || !summary || !nameInput || !phoneInput || !addrInput || !saveBtn) return;
+
+    var state = { address: null, pending: null };
+
+    function setMsg(text) {
+      if (msgEl) msgEl.textContent = text || '';
+    }
+
+    function renderSummary() {
+      var a = state.address;
+      var p = state.pending;
+      if (!a) {
+        summary.innerHTML =
+          '<span class="profile-address-summary__empty">尚未填写收货地址，推送定制订单前请先添加。</span>';
+        btn.textContent = '添加收货地址';
+      } else {
+        summary.innerHTML =
+          '<span class="profile-address-summary__label">默认收货地址</span>' +
+          '<span class="profile-address-summary__value">' +
+          ZJS.escapeHtml(a.name) +
+          ' ' +
+          ZJS.escapeHtml(a.phone) +
+          ' · ' +
+          ZJS.escapeHtml(a.address) +
+          '</span>' +
+          (p
+            ? '<span class="profile-address-badge">新地址审核中</span>'
+            : '');
+        btn.textContent = p ? '地址修改审核中' : '修改收货地址';
+      }
+      summary.hidden = false;
+    }
+
+    function openPanel() {
+      var src = state.pending
+        ? { name: state.pending.newName, phone: state.pending.newPhone, address: state.pending.newAddress }
+        : state.address;
+      nameInput.value = (src && src.name) || '';
+      phoneInput.value = (src && src.phone) || '';
+      addrInput.value = (src && src.address) || '';
+      saveBtn.disabled = !!state.pending;
+      saveBtn.textContent = '保存';
+      if (cancelReqBtn) cancelReqBtn.hidden = !state.pending;
+      setMsg(
+        state.pending
+          ? '地址修改申请正在等待管理员审核，通过后新订单将使用新地址。'
+          : ''
+      );
+      panel.hidden = false;
+      btn.hidden = true;
+      nameInput.focus();
+      nameInput.select();
+    }
+
+    function closePanel() {
+      panel.hidden = true;
+      btn.hidden = false;
+      setMsg('');
+    }
+
+    function applyState(data) {
+      if (data && data.address !== undefined) state.address = data.address || null;
+      if (data && data.pending !== undefined) state.pending = data.pending || null;
+      renderSummary();
+    }
+
+    addressRefreshFn = function () {
+      return Api.getMyAddress().then(function (d) {
+        /* 不覆盖正在编辑的表单，仅同步地址状态 */
+        applyState(d || {});
+      });
+    };
+
+    btn.addEventListener('click', openPanel);
+    if (cancelBtn) cancelBtn.addEventListener('click', closePanel);
+
+    saveBtn.addEventListener('click', function () {
+      var payload = {
+        name: nameInput.value.trim(),
+        phone: phoneInput.value.trim().replace(/[\s-]/g, ''),
+        address: addrInput.value.trim()
+      };
+      if (!payload.name) return setMsg('请填写收货人姓名');
+      if (!/^1[3-9]\d{9}$/.test(payload.phone)) return setMsg('请输入正确的 11 位手机号');
+      if (payload.address.length < 5) return setMsg('请填写详细收货地址（不少于 5 个字）');
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = '保存中…';
+      Api.saveMyAddress(payload).then(function (res) {
+        saveBtn.textContent = '保存';
+        if (!res || !res.ok) {
+          saveBtn.disabled = !!state.pending;
+          setMsg((res && res.message) || '保存失败');
+          return;
+        }
+        var d = res.data || {};
+        applyState({ address: d.address, pending: d.pending });
+        if (d.mode === 'pending') {
+          saveBtn.disabled = true;
+          if (cancelReqBtn) cancelReqBtn.hidden = false;
+          setMsg(d.message || '修改申请已提交，等待管理员审核');
+        } else {
+          setMsg('');
+          closePanel();
+        }
+      });
+    });
+
+    if (cancelReqBtn) {
+      cancelReqBtn.addEventListener('click', function () {
+        cancelReqBtn.disabled = true;
+        Api.cancelAddressRequest().then(function (res) {
+          cancelReqBtn.disabled = false;
+          if (!res || !res.ok) return setMsg((res && res.message) || '撤销失败');
+          state.pending = null;
+          renderSummary();
+          saveBtn.disabled = false;
+          cancelReqBtn.hidden = true;
+          setMsg('已撤销修改申请，当前仍使用原地址。');
+        });
+      });
+    }
+
+    Api.getMyAddress().then(function (d) {
+      applyState(d || { address: null, pending: null });
     });
   }
 

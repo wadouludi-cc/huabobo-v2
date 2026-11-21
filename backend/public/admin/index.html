@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>指间塑 · 管理后台</title>
-  <link rel="stylesheet" href="admin.css?v=20261121a">
+  <link rel="stylesheet" href="admin.css?v=20261121b">
   <link rel="stylesheet" href="./vendor/toastui-editor.min.css">
   <script>
     /* 走当前页面同源（域名须 Nginx 反代 /api；IP:3000 则直连 Node） */
@@ -54,6 +54,7 @@
         <button type="button" class="nav-item" data-panel="humans">数字人管理</button>
         <button type="button" class="nav-item" data-panel="prints">打印申请</button>
         <button type="button" class="nav-item" data-panel="orders">订单管理</button>
+        <button type="button" class="nav-item nav-item--badge" data-panel="addresses">地址审核<span id="address-nav-badge" class="nav-badge" hidden>0</span></button>
       </nav>
       <button type="button" id="btn-logout" class="btn-logout">退出登录</button>
     </aside>
@@ -370,6 +371,18 @@
         </div>
         <div id="orders-list" class="data-table-wrap"></div>
       </section>
+
+      <section id="panel-addresses" class="panel" hidden aria-hidden="true">
+        <div class="panel-toolbar">
+          <h3 class="models-admin-heading">收货地址</h3>
+          <button type="button" id="btn-addresses-refresh" class="btn btn-ghost">刷新</button>
+        </div>
+        <div id="address-pending-hint" class="address-pending-hint" hidden></div>
+        <h4 class="address-section-title">用户地址修改申请（待审核）</h4>
+        <div id="address-pending-list" class="data-table-wrap"></div>
+        <h4 class="address-section-title">用户当前收货地址</h4>
+        <div id="address-users-list" class="data-table-wrap"></div>
+      </section>
     </main>
   </div>
 
@@ -396,6 +409,6 @@
 
   <script src="./vendor/admin-thumb.bundle.js?v=20261120b" data-admin-thumb-bundle="1"></script>
   <script src="./vendor/toastui-editor-all.min.js"></script>
-  <script src="admin.js?v=20261121a"></script>
+  <script src="admin.js?v=20261121c"></script>
 </body>
 </html>

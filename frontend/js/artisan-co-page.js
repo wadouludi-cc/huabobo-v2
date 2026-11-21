@@ -88,6 +88,7 @@
         '<p class="tip">把你的 DIY 作品推送给 ' +
         esc(a.name) +
         '，对方会收到定制订单并开始接单。</p>' +
+        '<p id="order-ship-info" class="tip artisan-order-ship"></p>' +
         '<button type="button" id="btn-push-order" class="btn btn-primary">订单推送给该手艺人</button>' +
         '<p id="order-push-msg" class="tip"></p>' +
         '</div>';
@@ -135,10 +136,49 @@
     }
   }
 
+  function maskPhone(p) {
+    var s = String(p || '');
+    return s.length === 11 ? s.slice(0, 3) + '****' + s.slice(7) : s;
+  }
+
   function bindOrderPush(a) {
     var btn = document.getElementById('btn-push-order');
     if (!btn || !workId) return;
     var msgEl = document.getElementById('order-push-msg');
+    var shipEl = document.getElementById('order-ship-info');
+
+    function renderShip(addr, pending) {
+      if (!shipEl) return;
+      if (!addr) {
+        shipEl.innerHTML =
+          '尚未填写收货地址，推送前请先到 <a href="profile.html?id=me">我的主页</a> 添加，订单会自动使用该地址。';
+        return;
+      }
+      shipEl.innerHTML =
+        '本单配送地址：' +
+        esc(addr.name) +
+        ' ' +
+        esc(maskPhone(addr.phone)) +
+        ' · ' +
+        esc(addr.address) +
+        (pending ? '（新地址审核中，本单仍使用该地址）' : '') +
+        ' <a href="profile.html?id=me">修改</a>';
+    }
+
+    var token = getToken();
+    if (token) {
+      fetch(base + '/api/addresses/mine', { headers: { Authorization: 'Bearer ' + token } })
+        .then(function (r) {
+          return r.json();
+        })
+        .then(function (res) {
+          var d = (res && res.data) || {};
+          renderShip(d.address || null, d.pending || null);
+        })
+        .catch(function () {});
+    } else if (shipEl) {
+      shipEl.textContent = '登录后订单会自动使用我在「我的主页」设置的收货地址。';
+    }
 
     btn.addEventListener('click', function () {
       var token = getToken();
@@ -154,14 +194,26 @@
       btn.textContent = '推送中…';
       if (msgEl) msgEl.textContent = '';
 
-      fetch(base + '/api/custom-orders', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
-        body: JSON.stringify({ workId: workId, artisanId: a.id })
-      })
+      fetch(base + '/api/addresses/mine', { headers: { Authorization: 'Bearer ' + token } })
         .then(function (r) {
-          return r.json().then(function (d) {
-            return { ok: r.ok, data: d };
+          return r.json();
+        })
+        .then(function (res) {
+          var d = (res && res.data) || {};
+          renderShip(d.address || null, d.pending || null);
+          if (!d.address) {
+            var e = new Error('请先到「我的主页」添加收货地址，订单会自动使用该地址');
+            e.code = 'ADDRESS_REQUIRED';
+            throw e;
+          }
+          return fetch(base + '/api/custom-orders', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+            body: JSON.stringify({ workId: workId, artisanId: a.id })
+          }).then(function (r) {
+            return r.json().then(function (d2) {
+              return { ok: r.ok, data: d2 };
+            });
           });
         })
         .then(function (res) {
@@ -174,6 +226,14 @@
         .catch(function (err) {
           btn.disabled = false;
           btn.textContent = oldText;
+          if (err.code === 'ADDRESS_REQUIRED') {
+            if (msgEl) {
+              msgEl.innerHTML = '请先到 <a href="profile.html?id=me">我的主页</a> 添加收货地址后再推送订单。';
+            } else {
+              alert(err.message);
+            }
+            return;
+          }
           if (msgEl) msgEl.textContent = err.message || '推送失败，请稍后重试';
           else alert(err.message || '推送失败，请稍后重试');
         });

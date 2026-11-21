@@ -528,6 +528,39 @@
       });
   };
 
+  /** 我的默认收货地址 + 审核中的变更申请 */
+  Api.getMyAddress = function () {
+    return http('/api/addresses/mine')
+      .then(function (res) {
+        return (res && res.data) || { address: null, pending: null };
+      })
+      .catch(function () {
+        return { address: null, pending: null };
+      });
+  };
+
+  /** 保存收货地址：首次直接生效，之后提交变更申请等待管理员审核 */
+  Api.saveMyAddress = function (payload) {
+    return http('/api/addresses/mine', { method: 'PUT', json: payload || {} })
+      .then(function (res) {
+        return { ok: true, data: res.data };
+      })
+      .catch(function (err) {
+        return { ok: false, message: err.message || '保存失败' };
+      });
+  };
+
+  /** 撤销审核中的地址修改申请 */
+  Api.cancelAddressRequest = function () {
+    return http('/api/addresses/mine/request', { method: 'DELETE' })
+      .then(function (res) {
+        return { ok: true, data: res.data };
+      })
+      .catch(function (err) {
+        return { ok: false, message: err.message || '撤销失败' };
+      });
+  };
+
   function mapEngagementData(data) {
     if (!data) {
       return {

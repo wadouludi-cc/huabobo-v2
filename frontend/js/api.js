@@ -9,6 +9,40 @@
   var STUDIO_SNAP_PREFIX = 'zhijiansu_studio_';
   var LAST_PUBLISH_KEY = 'zhijiansu_last_publish';
   var CUSTOM_ORDERS_KEY = 'zhijiansu_custom_orders';
+  var ADDRESS_KEY = 'zhijiansu_address';
+  var ADDRESS_PENDING_KEY = 'zhijiansu_address_pending';
+
+  function loadLocalAddress() {
+    try {
+      var o = JSON.parse(localStorage.getItem(ADDRESS_KEY) || 'null');
+      return o && o.address ? o : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveLocalAddress(row) {
+    try {
+      if (row) localStorage.setItem(ADDRESS_KEY, JSON.stringify(row));
+      else localStorage.removeItem(ADDRESS_KEY);
+    } catch (e) {}
+  }
+
+  function loadLocalAddressPending() {
+    try {
+      var o = JSON.parse(localStorage.getItem(ADDRESS_PENDING_KEY) || 'null');
+      return o && o.status === 'pending' ? o : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function saveLocalAddressPending(row) {
+    try {
+      if (row) localStorage.setItem(ADDRESS_PENDING_KEY, JSON.stringify(row));
+      else localStorage.removeItem(ADDRESS_PENDING_KEY);
+    } catch (e) {}
+  }
 
   function loadCustomOrders() {
     try {
@@ -624,6 +658,14 @@
         return w.id === payload.workId;
       });
       if (!work) return delay({ ok: false, message: '作品不存在或已删除' });
+      var addr = loadLocalAddress();
+      if (!addr) {
+        return delay({
+          ok: false,
+          code: 'ADDRESS_REQUIRED',
+          message: '请先在「我的」主页添加收货地址，订单会自动使用该地址'
+        });
+      }
       var list = loadCustomOrders();
       var now = new Date().toISOString().slice(0, 10);
       var row = {
@@ -634,6 +676,7 @@
         note: payload.note || '',
         status: 'pending',
         statusLabel: '正在接单',
+        ship: { name: addr.name, phone: addr.phone, address: addr.address },
         createdAt: now,
         updatedAt: now,
         work: { id: work.id, title: work.title, image: work.image || '', tag: work.tag || '' }
@@ -645,6 +688,62 @@
 
     getMyCustomOrders: function () {
       return delay(loadCustomOrders());
+    },
+
+    /** 本地模式：收货地址（仅 localStorage） */
+    getMyAddress: function () {
+      return delay({
+        address: loadLocalAddress(),
+        pending: loadLocalAddressPending()
+      });
+    },
+
+    saveMyAddress: function (payload) {
+      payload = payload || {};
+      var name = String(payload.name || '').trim();
+      var phone = String(payload.phone || '').trim();
+      var address = String(payload.address || '').trim();
+      if (!name) return delay({ ok: false, message: '请填写收货人姓名' });
+      if (!/^1[3-9]\d{9}$/.test(phone)) return delay({ ok: false, message: '请输入正确的 11 位手机号' });
+      if (address.length < 5) return delay({ ok: false, message: '请填写详细收货地址（不少于 5 个字）' });
+      var current = loadLocalAddress();
+      var now = new Date().toISOString().slice(0, 10);
+      if (!current) {
+        var row = { name: name, phone: phone, address: address, updatedAt: now };
+        saveLocalAddress(row);
+        return delay({ ok: true, data: { mode: 'saved', message: '收货地址已保存', address: row } });
+      }
+      if (current.name === name && current.phone === phone && current.address === address) {
+        return delay({ ok: false, message: '新地址与当前收货地址相同，无需修改' });
+      }
+      if (loadLocalAddressPending()) {
+        return delay({ ok: false, message: '已有一条地址修改申请正在等待管理员审核' });
+      }
+      var pending = {
+        status: 'pending',
+        oldName: current.name,
+        oldPhone: current.phone,
+        oldAddress: current.address,
+        newName: name,
+        newPhone: phone,
+        newAddress: address,
+        createdAt: now
+      };
+      saveLocalAddressPending(pending);
+      return delay({
+        ok: true,
+        data: {
+          mode: 'pending',
+          message: '修改申请已提交，等待管理员审核；审核通过后新订单才使用新地址',
+          address: current,
+          pending: pending
+        }
+      });
+    },
+
+    cancelAddressRequest: function () {
+      saveLocalAddressPending(null);
+      return delay({ ok: true, data: { cancelled: true } });
     },
 
     getAllArtisansForPick: function () {
