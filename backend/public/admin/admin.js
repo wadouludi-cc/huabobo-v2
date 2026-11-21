@@ -2626,6 +2626,236 @@
     });
   }
 
+  /* ---------------- 定制订单 ---------------- */
+  var ORDER_STATUS = [
+    { key: 'pending', label: '正在接单' },
+    { key: 'accepted', label: '已接单制作' },
+    { key: 'delivering', label: '准备派送' },
+    { key: 'completed', label: '已完成' }
+  ];
+
+  var orderPreviewHandles = [];
+  var orderModelMap = null;
+
+  function orderStatusLabel(status) {
+    for (var i = 0; i < ORDER_STATUS.length; i++) {
+      if (ORDER_STATUS[i].key === status) return ORDER_STATUS[i].label;
+    }
+    return status || '';
+  }
+
+  function disposeOrderPreviews() {
+    orderPreviewHandles.forEach(function (h) {
+      try {
+        if (h && h.dispose) h.dispose();
+      } catch (e) {}
+    });
+    orderPreviewHandles = [];
+  }
+
+  function loadOrders() {
+    return api('/api/admin/custom-orders')
+      .then(function (res) {
+        var wrap = document.getElementById('orders-list');
+        if (!wrap) return;
+        var list = (res.data && res.data.list) || [];
+        if (!list.length) {
+          wrap.innerHTML = '<p class="empty-hint">暂无定制订单</p>';
+          return;
+        }
+        wrap.innerHTML =
+          '<table class="data-table"><thead><tr><th class="cell-thumb">作品</th><th>作品名</th><th>用户</th><th>手艺人</th><th>状态</th><th>推送时间</th><th class="cell-actions">操作</th></tr></thead><tbody>' +
+          list
+            .map(function (o) {
+              var w = o.work || {};
+              var thumb = w.image
+                ? '<img class="data-thumb" src="' + escapeHtml(adminUploadUrl(w.image)) + '" alt="">'
+                : '<span class="editor-section-hint">—</span>';
+              return (
+                '<tr><td class="cell-thumb">' +
+                thumb +
+                '</td><td>' +
+                escapeHtml(w.title || '作品已删除') +
+                '</td><td>' +
+                escapeHtml((o.user && (o.user.nickname || o.user.handle)) || '—') +
+                '</td><td>' +
+                escapeHtml(o.artisanName || '—') +
+                '</td><td><span class="order-status-tag is-' +
+                escapeHtml(o.status) +
+                '">' +
+                escapeHtml(o.statusLabel || orderStatusLabel(o.status)) +
+                '</span></td><td>' +
+                escapeHtml(o.createdAt || '') +
+                '</td><td class="cell-actions"><button type="button" class="btn btn-ghost" data-order-view="' +
+                escapeHtml(o.id) +
+                '">查看详情</button></td></tr>'
+              );
+            })
+            .join('') +
+          '</tbody></table>';
+
+        wrap.querySelectorAll('[data-order-view]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            openOrderDetail(btn.getAttribute('data-order-view'));
+          });
+        });
+      })
+      .catch(function (err) {
+        var wrap = document.getElementById('orders-list');
+        if (wrap) wrap.innerHTML = '<p class="empty-hint">加载失败：' + escapeHtml(err.message || '') + '</p>';
+      });
+  }
+
+  function loadStudioModelMap() {
+    if (orderModelMap) return Promise.resolve(orderModelMap);
+    return api('/api/admin/studio-models')
+      .then(function (res) {
+        var map = {};
+        ((res.data && res.data.list) || []).forEach(function (m) {
+          map[m.id] = m;
+        });
+        orderModelMap = map;
+        return map;
+      })
+      .catch(function () {
+        return {};
+      });
+  }
+
+  function closeOrderDetail() {
+    var modal = document.getElementById('order-detail-modal');
+    if (modal) modal.hidden = true;
+    disposeOrderPreviews();
+    var body = document.getElementById('order-detail-body');
+    if (body) body.innerHTML = '';
+  }
+
+  function openOrderDetail(id) {
+    var modal = document.getElementById('order-detail-modal');
+    var body = document.getElementById('order-detail-body');
+    if (!modal || !body) return;
+    disposeOrderPreviews();
+    modal.hidden = false;
+    body.innerHTML = '<p class="editor-section-hint">加载中…</p>';
+
+    Promise.all([api('/api/admin/custom-orders/' + encodeURIComponent(id)), loadStudioModelMap()])
+      .then(function (arr) {
+        var o = (arr[0] && arr[0].data) || {};
+        renderOrderDetail(o, arr[1] || {});
+      })
+      .catch(function (err) {
+        body.innerHTML = '<p class="form-error">加载失败：' + escapeHtml(err.message || '') + '</p>';
+      });
+  }
+
+  function renderOrderDetail(o, modelMap) {
+    var body = document.getElementById('order-detail-body');
+    if (!body) return;
+    var titleEl = document.getElementById('order-detail-title');
+    if (titleEl) titleEl.textContent = '订单详情 · ' + ((o.work && o.work.title) || o.id);
+
+    var w = o.work || {};
+    var img = w.image ? adminUploadUrl(w.image) : '';
+    var instances = (w.studio && w.studio.instances) || [];
+
+    var statusBtns = ORDER_STATUS.map(function (s) {
+      return (
+        '<button type="button" class="btn ' +
+        (s.key === o.status ? 'btn-primary' : 'btn-ghost') +
+        '" data-order-status="' +
+        s.key +
+        '">' +
+        s.label +
+        '</button>'
+      );
+    }).join('');
+
+    body.innerHTML =
+      '<div class="order-detail-grid">' +
+      '<div class="order-detail-photo"><h4>作品照片</h4>' +
+      (img
+        ? '<img src="' + escapeHtml(img) + '" alt="作品照片">'
+        : '<p class="editor-section-hint">该作品没有封面图片</p>') +
+      '</div>' +
+      '<div class="order-detail-info"><h4>订单信息</h4>' +
+      '<dl class="order-info-list">' +
+      '<dt>作品</dt><dd>' + escapeHtml(w.title || '作品已删除') + '</dd>' +
+      '<dt>用户</dt><dd>' + escapeHtml((o.user && (o.user.nickname || o.user.handle)) || '—') + '</dd>' +
+      '<dt>手艺人</dt><dd>' + escapeHtml(o.artisanName || '—') + '</dd>' +
+      '<dt>推送时间</dt><dd>' + escapeHtml(o.createdAt || '') + '</dd>' +
+      '<dt>备注</dt><dd>' + escapeHtml(o.note || '—') + '</dd>' +
+      '<dt>当前状态</dt><dd><span class="order-status-tag is-' + escapeHtml(o.status) + '">' +
+      escapeHtml(o.statusLabel || orderStatusLabel(o.status)) + '</span></dd>' +
+      '</dl>' +
+      '<h4>更新状态</h4>' +
+      '<div class="order-status-actions" id="order-status-actions">' + statusBtns + '</div>' +
+      '</div></div>' +
+      '<h4>三维模型</h4>' +
+      '<div class="order-model-grid" id="order-model-grid"></div>';
+
+    body.querySelectorAll('[data-order-status]').forEach(function (btn) {
+      btn.addEventListener('click', function () {
+        updateOrderStatus(o.id, btn.getAttribute('data-order-status'), btn);
+      });
+    });
+
+    var grid = document.getElementById('order-model-grid');
+    if (!grid) return;
+    if (!instances.length) {
+      grid.innerHTML = '<p class="editor-section-hint">该作品没有保存三维模型数据（可能是旧作品或 AR 截图）</p>';
+      return;
+    }
+
+    var maxRender = Math.min(instances.length, 6);
+    var html = '';
+    for (var i = 0; i < maxRender; i++) {
+      var ins = instances[i];
+      var m = modelMap[ins.modelId];
+      var name = (m && m.name) || ins.modelId || '模型 ' + (i + 1);
+      html +=
+        '<div class="order-model-item"><div class="order-model-canvas" data-model-canvas="' +
+        i +
+        '"></div><p class="editor-section-hint">' +
+        escapeHtml(name) +
+        '</p></div>';
+    }
+    grid.innerHTML = html;
+
+    if (!window.AdminModelThumb || !window.AdminModelThumb.createDigitalHumanPreview) return;
+    for (var j = 0; j < maxRender; j++) {
+      (function (idx) {
+        var ins = instances[idx];
+        var m = modelMap[ins.modelId];
+        if (!m || !m.glbUrl) return;
+        var el = grid.querySelector('[data-model-canvas="' + idx + '"]');
+        if (!el) return;
+        try {
+          var handle = window.AdminModelThumb.createDigitalHumanPreview(el, {
+            glbUrl: adminUploadUrl(m.glbUrl)
+          });
+          orderPreviewHandles.push(handle);
+        } catch (e) {}
+      })(j);
+    }
+  }
+
+  function updateOrderStatus(id, status, btn) {
+    if (btn) btn.disabled = true;
+    return api('/api/admin/custom-orders/' + encodeURIComponent(id), {
+      method: 'PATCH',
+      body: { status: status }
+    })
+      .then(function () {
+        if (btn) btn.disabled = false;
+        openOrderDetail(id);
+        loadOrders();
+      })
+      .catch(function (err) {
+        if (btn) btn.disabled = false;
+        alert(err.message || '状态更新失败');
+      });
+  }
+
   function loadComments() {
     return api('/api/admin/comments?limit=50').then(function (res) {
       var wrap = document.getElementById('comments-list');
@@ -2802,7 +3032,8 @@
     models: loadStudioLibraryAdmin,
     humans: loadDigitalHumans,
     comments: loadComments,
-    prints: loadPrints
+    prints: loadPrints,
+    orders: loadOrders
   };
 
   var panelTitles = {
@@ -2814,7 +3045,8 @@
     models: '模型管理',
     humans: '数字人管理',
     comments: '作品留言',
-    prints: '打印申请'
+    prints: '打印申请',
+    orders: '订单管理'
   };
 
   function switchPanel(name) {
@@ -2986,6 +3218,7 @@
   onEl('human-cancel', 'click', closeHumanForm);
   onEl('human-preview-btn', 'click', previewCurrentHuman);
   onEl('human-preview-close', 'click', closeHumanPreview);
+  onEl('order-detail-close', 'click', closeOrderDetail);
   var humanFormEl = document.getElementById('human-form');
   if (humanFormEl) humanFormEl.addEventListener('submit', saveHumanForm);
   onEl('human-glb', 'change', function () {
@@ -3022,6 +3255,12 @@
   }
   onEl('btn-prints-refresh', 'click', function () {
     loadPrints();
+  });
+  onEl('btn-orders-refresh', 'click', function () {
+    loadOrders();
+  });
+  onEl('order-detail-modal', 'click', function (e) {
+    if (e.target === this) closeOrderDetail();
   });
 
   document.getElementById('btn-user-search').addEventListener('click', function () {

@@ -21,6 +21,7 @@ const studioModelsRoutes = require('./routes/studioModels');
 const studioModelCategoriesRoutes = require('./routes/studioModelCategories');
 const digitalHumansRoutes = require('./routes/digitalHumans');
 const printOrdersRoutes = require('./routes/printOrders');
+const customOrdersRoutes = require('./routes/customOrders');
 
 const app = express();
 
@@ -104,6 +105,8 @@ app.use('/api/digital-humans', digitalHumansRoutes.publicRouter);
 app.use('/api/admin/digital-humans', digitalHumansRoutes.adminRouter);
 app.use('/api/print-orders', printOrdersRoutes.publicRouter);
 app.use('/api/admin/print-orders', printOrdersRoutes.adminRouter);
+app.use('/api/custom-orders', customOrdersRoutes.publicRouter);
+app.use('/api/admin/custom-orders', customOrdersRoutes.adminRouter);
 app.use('/api/tts', require('./routes/tts'));
 app.use('/api', require('./routes/ai'));
 

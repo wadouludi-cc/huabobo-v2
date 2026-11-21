@@ -141,6 +141,10 @@
           : '我也要 DIY 创作') +
       '</a>' +
       '</div></div>' +
+      (isSelf
+        ? '<h2 class="section-title">正在定制的订单</h2>' +
+          '<div class="custom-order-list" id="my-custom-orders"><p class="section-desc">加载中…</p></div>'
+        : '') +
       '<h2 class="section-title">' +
       (isSelf
         ? ZJS.t
@@ -160,6 +164,7 @@
       bindWorkThumbErrors(root);
       if (canEditAvatar) bindAvatarUpload(root, user);
       if (typeof Api.updateUserNickname === 'function') bindNameEdit(root, user);
+      startCustomOrderPolling();
     }
     document.title = user.name + ' — 指间塑';
   }
@@ -168,6 +173,69 @@
     var url = ZJS.normalizeWorkImageUrl ? ZJS.normalizeWorkImageUrl(work && work.image) : work && work.image;
     if (url) return url;
     return ZJS.workPlaceholderImage ? ZJS.workPlaceholderImage() : '';
+  }
+
+  var customOrderTimer = null;
+  var customOrderVisibilityBound = false;
+
+  function renderCustomOrders(list) {
+    var wrap = document.getElementById('my-custom-orders');
+    if (!wrap) return;
+    if (!list || !list.length) {
+      wrap.innerHTML =
+        '<p class="section-desc">暂无定制订单。进入作品详情页选择合作手艺人，把作品推送给他们即可开始定制。</p>';
+      return;
+    }
+    wrap.innerHTML = list
+      .map(function (o) {
+        var w = o.work || {};
+        var thumb = workThumbSrc(w);
+        return (
+          '<article class="custom-order-card">' +
+          (thumb
+            ? '<img class="custom-order-thumb" src="' + ZJS.escapeAttr(thumb) + '" alt="" loading="lazy">'
+            : '<div class="custom-order-thumb custom-order-thumb--empty" aria-hidden="true"></div>') +
+          '<div class="custom-order-body">' +
+          '<h3>' +
+          ZJS.escapeHtml(w.title || '作品已删除') +
+          '</h3>' +
+          '<p class="custom-order-meta">手艺人：' +
+          ZJS.escapeHtml(o.artisanName || '—') +
+          '</p>' +
+          '<p class="custom-order-meta">推送时间：' +
+          ZJS.escapeHtml(o.createdAt || '') +
+          '</p>' +
+          '</div>' +
+          '<span class="custom-order-status is-' +
+          ZJS.escapeAttr(o.status || 'pending') +
+          '">' +
+          ZJS.escapeHtml(o.statusLabel || o.status || '') +
+          '</span>' +
+          '</article>'
+        );
+      })
+      .join('');
+  }
+
+  function refreshCustomOrders() {
+    if (typeof Api.getMyCustomOrders !== 'function') return Promise.resolve();
+    return Api.getMyCustomOrders().then(function (list) {
+      renderCustomOrders(list || []);
+    });
+  }
+
+  function startCustomOrderPolling() {
+    refreshCustomOrders();
+    if (!customOrderVisibilityBound) {
+      customOrderVisibilityBound = true;
+      document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState !== 'hidden') refreshCustomOrders();
+      });
+    }
+    if (customOrderTimer) return;
+    customOrderTimer = setInterval(function () {
+      if (document.visibilityState !== 'hidden') refreshCustomOrders();
+    }, 15000);
   }
 
   function bindWorkThumbErrors(scope) {

@@ -15,8 +15,13 @@
   function renderClassicDetail(work, author, artisans, eng) {
     var pickHtml = artisans
       .map(function (a) {
+        // 手艺人详情页带上 workId，便于在该页把作品作为定制订单推送给手艺人
+        var link = a.link || '';
+        if (link.indexOf('artisan-co.html') === 0) {
+          link += (link.indexOf('?') >= 0 ? '&' : '?') + 'workId=' + encodeURIComponent(work.id);
+        }
         return (
-          '<a href="' + a.link + '" class="artisan-pick-item">' +
+          '<a href="' + link + '" class="artisan-pick-item">' +
           '<img src="' + ZJS.escapeAttr(a.image) + '" alt="' + ZJS.escapeHtml(a.name) + '" width="48" height="48" loading="lazy">' +
           '<div class="artisan-pick-info"><strong>' + ZJS.escapeHtml(a.name) + '</strong>' +
           '<span class="artisan-pick-role">' + ZJS.escapeHtml(a.role) + '</span>' +

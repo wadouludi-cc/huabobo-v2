@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>指间塑 · 管理后台</title>
-  <link rel="stylesheet" href="admin.css?v=20261120b">
+  <link rel="stylesheet" href="admin.css?v=20261121a">
   <link rel="stylesheet" href="./vendor/toastui-editor.min.css">
   <script>
     /* 走当前页面同源（域名须 Nginx 反代 /api；IP:3000 则直连 Node） */
@@ -53,6 +53,7 @@
         <button type="button" class="nav-item" data-panel="models">模型管理</button>
         <button type="button" class="nav-item" data-panel="humans">数字人管理</button>
         <button type="button" class="nav-item" data-panel="prints">打印申请</button>
+        <button type="button" class="nav-item" data-panel="orders">订单管理</button>
       </nav>
       <button type="button" id="btn-logout" class="btn-logout">退出登录</button>
     </aside>
@@ -361,6 +362,14 @@
         </div>
         <div id="prints-list" class="data-table-wrap"></div>
       </section>
+
+      <section id="panel-orders" class="panel" hidden aria-hidden="true">
+        <div class="panel-toolbar">
+          <h3 class="models-admin-heading">定制订单</h3>
+          <button type="button" id="btn-orders-refresh" class="btn btn-ghost">刷新</button>
+        </div>
+        <div id="orders-list" class="data-table-wrap"></div>
+      </section>
     </main>
   </div>
 
@@ -375,8 +384,18 @@
     </div>
   </div>
 
+  <div id="order-detail-modal" class="human-preview-modal" hidden>
+    <div class="human-preview-card order-detail-card">
+      <div class="human-preview-head">
+        <h3 id="order-detail-title">订单详情</h3>
+        <button type="button" id="order-detail-close" class="btn btn-ghost">关闭</button>
+      </div>
+      <div id="order-detail-body" class="order-detail-body"></div>
+    </div>
+  </div>
+
   <script src="./vendor/admin-thumb.bundle.js?v=20261120b" data-admin-thumb-bundle="1"></script>
   <script src="./vendor/toastui-editor-all.min.js"></script>
-  <script src="admin.js?v=20261120c"></script>
+  <script src="admin.js?v=20261121a"></script>
 </body>
 </html>

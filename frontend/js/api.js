@@ -8,6 +8,22 @@
   var HIDDEN_WORKS_KEY = 'zhijiansu_hidden_works';
   var STUDIO_SNAP_PREFIX = 'zhijiansu_studio_';
   var LAST_PUBLISH_KEY = 'zhijiansu_last_publish';
+  var CUSTOM_ORDERS_KEY = 'zhijiansu_custom_orders';
+
+  function loadCustomOrders() {
+    try {
+      var list = JSON.parse(localStorage.getItem(CUSTOM_ORDERS_KEY) || '[]');
+      return Array.isArray(list) ? list : [];
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function saveCustomOrders(list) {
+    try {
+      localStorage.setItem(CUSTOM_ORDERS_KEY, JSON.stringify(list || []));
+    } catch (e) {}
+  }
 
   function loadHiddenWorkIds() {
     try {
@@ -598,6 +614,37 @@
     getArtisans: function () {
       var list = db.users.filter(function (u) { return u.type === 'artisan'; });
       return delay(list);
+    },
+
+    /** 本地模式：把作品推送为定制订单（仅存 localStorage，供演示） */
+    createCustomOrder: function (payload) {
+      reloadDb();
+      payload = payload || {};
+      var work = db.works.find(function (w) {
+        return w.id === payload.workId;
+      });
+      if (!work) return delay({ ok: false, message: '作品不存在或已删除' });
+      var list = loadCustomOrders();
+      var now = new Date().toISOString().slice(0, 10);
+      var row = {
+        id: 'local_co_' + Date.now(),
+        workId: payload.workId,
+        artisanId: payload.artisanId || '',
+        artisanName: payload.artisanName || '合作手艺人',
+        note: payload.note || '',
+        status: 'pending',
+        statusLabel: '正在接单',
+        createdAt: now,
+        updatedAt: now,
+        work: { id: work.id, title: work.title, image: work.image || '', tag: work.tag || '' }
+      };
+      list.unshift(row);
+      saveCustomOrders(list);
+      return delay({ ok: true, data: { id: row.id, status: row.status, statusLabel: row.statusLabel } });
+    },
+
+    getMyCustomOrders: function () {
+      return delay(loadCustomOrders());
     },
 
     getAllArtisansForPick: function () {

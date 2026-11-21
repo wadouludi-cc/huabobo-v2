@@ -116,6 +116,9 @@ async function connectDb() {
       await pgPool.query("CREATE TABLE IF NOT EXISTS digital_humans (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, gender TEXT DEFAULT 'female' NOT NULL, glb_url TEXT NOT NULL, thumbnail TEXT DEFAULT '' NOT NULL, background_type TEXT DEFAULT 'color' NOT NULL, background_color TEXT DEFAULT '#f3ebe0' NOT NULL, background_image TEXT DEFAULT '' NOT NULL, enabled BOOLEAN DEFAULT false NOT NULL, rig_info TEXT DEFAULT '{}' NOT NULL, sort_order INTEGER DEFAULT 0 NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)");
       await pgPool.query("CREATE INDEX IF NOT EXISTS digital_humans_enabled_idx ON digital_humans (enabled)");
       await pgPool.query("CREATE UNIQUE INDEX IF NOT EXISTS digital_humans_single_enabled ON digital_humans (enabled) WHERE enabled = true");
+      await pgPool.query("CREATE TABLE IF NOT EXISTS custom_orders (id TEXT PRIMARY KEY NOT NULL, work_id TEXT DEFAULT '' NOT NULL, user_id TEXT DEFAULT '' NOT NULL, artisan_id TEXT DEFAULT '' NOT NULL, artisan_name TEXT DEFAULT '' NOT NULL, note TEXT DEFAULT '' NOT NULL, status TEXT DEFAULT 'pending' NOT NULL, created_at BIGINT NOT NULL, updated_at BIGINT NOT NULL)");
+      await pgPool.query("CREATE INDEX IF NOT EXISTS custom_orders_user_idx ON custom_orders (user_id)");
+      await pgPool.query("CREATE INDEX IF NOT EXISTS custom_orders_status_idx ON custom_orders (status)");
     } catch (e) {
       console.warn('[db] 兼容列检查跳过', e.message);
     }
@@ -152,6 +155,9 @@ async function connectDb() {
       sqliteHandle.exec("CREATE TABLE IF NOT EXISTS digital_humans (id TEXT PRIMARY KEY NOT NULL, name TEXT NOT NULL, gender TEXT DEFAULT 'female' NOT NULL, glb_url TEXT NOT NULL, thumbnail TEXT DEFAULT '' NOT NULL, background_type TEXT DEFAULT 'color' NOT NULL, background_color TEXT DEFAULT '#f3ebe0' NOT NULL, background_image TEXT DEFAULT '' NOT NULL, enabled INTEGER DEFAULT 0 NOT NULL, rig_info TEXT DEFAULT '{}' NOT NULL, sort_order INTEGER DEFAULT 0 NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
       sqliteHandle.exec("CREATE INDEX IF NOT EXISTS digital_humans_enabled_idx ON digital_humans (enabled)");
       sqliteHandle.exec("CREATE UNIQUE INDEX IF NOT EXISTS digital_humans_single_enabled ON digital_humans (enabled) WHERE enabled = 1");
+      sqliteHandle.exec("CREATE TABLE IF NOT EXISTS custom_orders (id TEXT PRIMARY KEY NOT NULL, work_id TEXT DEFAULT '' NOT NULL, user_id TEXT DEFAULT '' NOT NULL, artisan_id TEXT DEFAULT '' NOT NULL, artisan_name TEXT DEFAULT '' NOT NULL, note TEXT DEFAULT '' NOT NULL, status TEXT DEFAULT 'pending' NOT NULL, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL)");
+      sqliteHandle.exec("CREATE INDEX IF NOT EXISTS custom_orders_user_idx ON custom_orders (user_id)");
+      sqliteHandle.exec("CREATE INDEX IF NOT EXISTS custom_orders_status_idx ON custom_orders (status)");
     } catch (e) {
       console.warn('[db] 兼容列检查跳过', e.message);
     }

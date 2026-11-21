@@ -158,6 +158,27 @@ const printOrders = sqliteTable('print_orders', {
   updatedAt: integer('updated_at', { mode: 'number' }).notNull()
 });
 
+/** 定制订单：用户把自己的 DIY 作品推送给指定合作手艺人 */
+const customOrders = sqliteTable(
+  'custom_orders',
+  {
+    id: text('id').primaryKey(),
+    workId: text('work_id').notNull().default(''),
+    userId: text('user_id').notNull().default(''),
+    artisanId: text('artisan_id').notNull().default(''),
+    artisanName: text('artisan_name').notNull().default(''),
+    note: text('note').notNull().default(''),
+    /** pending 正在接单 / accepted 已接单制作 / delivering 准备派送 / completed 已完成 */
+    status: text('status').notNull().default('pending'),
+    createdAt: integer('created_at', { mode: 'number' }).notNull(),
+    updatedAt: integer('updated_at', { mode: 'number' }).notNull()
+  },
+  (t) => [
+    index('custom_orders_user_idx').on(t.userId),
+    index('custom_orders_status_idx').on(t.status)
+  ]
+);
+
 module.exports = {
   users,
   works,
@@ -169,5 +190,6 @@ module.exports = {
   studioModelCategories,
   digitalHumans,
   aboutPages,
-  printOrders
+  printOrders,
+  customOrders
 };

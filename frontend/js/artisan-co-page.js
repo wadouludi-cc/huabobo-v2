@@ -6,6 +6,7 @@
   if (!root) return;
 
   var id = new URLSearchParams(window.location.search).get('id');
+  var workId = new URLSearchParams(window.location.search).get('workId') || '';
   var base = window.ZJS && ZJS.API_BASE ? ZJS.API_BASE.replace(/\/$/, '') : '';
 
   function esc(s) {
@@ -79,6 +80,19 @@
         '</div></div>';
     }
 
+    var orderHtml = '';
+    if (workId) {
+      orderHtml =
+        '<div class="detail-block artisan-order-block">' +
+        '<h2>定制下单</h2>' +
+        '<p class="tip">把你的 DIY 作品推送给 ' +
+        esc(a.name) +
+        '，对方会收到定制订单并开始接单。</p>' +
+        '<button type="button" id="btn-push-order" class="btn btn-primary">订单推送给该手艺人</button>' +
+        '<p id="order-push-msg" class="tip"></p>' +
+        '</div>';
+    }
+
     root.innerHTML =
       '<nav class="breadcrumb"><a href="index.html">首页</a><span>/</span><a href="artisans.html">合作手艺人</a><span>/</span>' +
       esc(a.name) +
@@ -107,7 +121,63 @@
         : '') +
       contactHtml +
       wechatHtml +
+      orderHtml +
       '<p class="detail-back"><a href="artisans.html" class="btn btn-outline">← 返回手艺人列表</a></p>';
+
+    bindOrderPush(a);
+  }
+
+  function getToken() {
+    try {
+      return sessionStorage.getItem('zhijiansu_user_token') || '';
+    } catch (e) {
+      return '';
+    }
+  }
+
+  function bindOrderPush(a) {
+    var btn = document.getElementById('btn-push-order');
+    if (!btn || !workId) return;
+    var msgEl = document.getElementById('order-push-msg');
+
+    btn.addEventListener('click', function () {
+      var token = getToken();
+      if (!token) {
+        if (confirm('请先登录后再推送订单。\n\n点击「确定」前往登录页。')) {
+          var returnUrl = encodeURIComponent(location.pathname.split('/').pop() + location.search);
+          location.href = 'login.html?return=' + returnUrl;
+        }
+        return;
+      }
+      btn.disabled = true;
+      var oldText = btn.textContent;
+      btn.textContent = '推送中…';
+      if (msgEl) msgEl.textContent = '';
+
+      fetch(base + '/api/custom-orders', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+        body: JSON.stringify({ workId: workId, artisanId: a.id })
+      })
+        .then(function (r) {
+          return r.json().then(function (d) {
+            return { ok: r.ok, data: d };
+          });
+        })
+        .then(function (res) {
+          if (!res.ok || !res.data || !res.data.ok) {
+            throw new Error((res.data && res.data.message) || '推送失败，请稍后重试');
+          }
+          btn.textContent = '已推送，正在跳转到我的主页…';
+          window.location.href = 'profile.html?id=me';
+        })
+        .catch(function (err) {
+          btn.disabled = false;
+          btn.textContent = oldText;
+          if (msgEl) msgEl.textContent = err.message || '推送失败，请稍后重试';
+          else alert(err.message || '推送失败，请稍后重试');
+        });
+    });
   }
 
   if (!id || !base) {

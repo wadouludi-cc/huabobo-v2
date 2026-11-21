@@ -503,6 +503,31 @@
       });
   };
 
+  /** 把 DIY 作品推送给指定手艺人，生成定制订单 */
+  Api.createCustomOrder = function (payload) {
+    return http('/api/custom-orders', { method: 'POST', json: payload || {} })
+      .then(function (res) {
+        return { ok: true, data: res.data };
+      })
+      .catch(function (err) {
+        return { ok: false, message: err.message || '推送失败' };
+      });
+  };
+
+  /** 当前用户的定制订单列表 */
+  Api.getMyCustomOrders = function () {
+    return http('/api/custom-orders/mine')
+      .then(function (res) {
+        return ((res.data && res.data.list) || []).map(function (o) {
+          if (o.work) o.work.image = resolveImageUrl(o.work.image);
+          return o;
+        });
+      })
+      .catch(function () {
+        return [];
+      });
+  };
+
   function mapEngagementData(data) {
     if (!data) {
       return {
