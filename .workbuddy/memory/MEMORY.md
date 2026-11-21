@@ -1,0 +1,11 @@
+# 项目约定（指间塑 / huabobo-v2）
+
+## Git 工作流
+- 任务完成且本地自测通过后，**自动提交并推送**，不用再询问用户。
+- 提交信息用中文，首行一句话说清改了什么，正文列具体改动；不要把无关改动混进同一笔。
+- 远端：`https://github.com/wadouludi-cc/huabobo-v2.git`（public，main 分支）。
+- 推送限制：沙箱内 `github.com:443` 走代理返回 502，且命令行没有 GitHub 凭证（钥匙串无 github.com 条目）。`api.github.com`、`raw.githubusercontent.com`、`ssh.github.com:443` 可通，可用于校验远端状态。实际推送需用户在 GitHub Desktop 或本地终端执行。
+- 历史被重写后（reset --soft / rebase）需 `git push --force-with-lease`；备份分支命名 `backup-before-*`。
+
+## 测试
+- 冒烟：`cd backend && node scripts/smoke.js`（需先启动后端，健康检查 `/api/health`）。改动接口行为时要同步更新 `backend/scripts/smoke.js`，CI 的 backend / backend-pg / docker-image / deploy-test 都跑它。
