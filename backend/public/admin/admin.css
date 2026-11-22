@@ -1276,22 +1276,23 @@ body.admin-auth .app {
   outline-offset: 2px;
 }
 
-.addr-eye .icon-eye-off {
+/* 默认闭眼（隐藏态），点开眼睛后变睁眼并高亮 */
+.addr-eye .icon-eye {
   display: none;
 }
 
-.addr-eye.is-off {
-  color: var(--primary);
-  border-color: rgba(196, 30, 58, 0.35);
-  background: rgba(196, 30, 58, 0.06);
+.addr-eye.is-revealed {
+  color: var(--accent);
+  border-color: rgba(30, 77, 107, 0.35);
+  background: rgba(30, 77, 107, 0.06);
 }
 
-.addr-eye.is-off .icon-eye {
-  display: none;
-}
-
-.addr-eye.is-off .icon-eye-off {
+.addr-eye.is-revealed .icon-eye {
   display: block;
+}
+
+.addr-eye.is-revealed .icon-eye-off {
+  display: none;
 }
 
 tr.is-masked .addr-secret {

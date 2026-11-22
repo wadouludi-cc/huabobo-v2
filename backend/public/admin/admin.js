@@ -3025,9 +3025,9 @@
     );
   }
 
-  /* ===== 地址审核：每行一个眼睛按钮，点一下把手机号和地址换成 *** =====
-     隐藏状态只存在内存里（key 形如 p-申请ID / a-地址ID），刷新页面恢复明文 */
-  var maskedAddressRows = {};
+  /* ===== 地址审核：手机号和地址默认隐藏，点行尾眼睛才显示 =====
+     显隐状态只存在内存里（key 形如 p-申请ID / a-地址ID），刷新页面回到默认隐藏 */
+  var revealedAddressRows = {};
   var EYE_ICON =
     '<svg class="icon-eye" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
     '<path d="M2 12s3.6-6.4 10-6.4S22 12 22 12s-3.6 6.4-10 6.4S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
@@ -3037,7 +3037,7 @@
     '<path d="M6.4 8.1A17.4 17.4 0 0 0 2 12s3.6 6 10 6a9.9 9.9 0 0 0 4.1-.9"/>' +
     '<path d="M9.9 10a3 3 0 0 0 4.1 4.1"/><path d="m3 3 18 18"/></svg>';
 
-  /** 手机号/地址这类隐私文本：保留原文在 data 属性里，隐藏时直接换成 *** */
+  /** 手机号/地址这类隐私文本：默认渲染成 ***，原文只放在 data 属性里，点眼睛才写回 DOM */
   function addrSecretText(text, extraClass) {
     var t = String(text || '');
     if (!t) return '—';
@@ -3046,9 +3046,7 @@
       (extraClass ? ' ' + extraClass : '') +
       '" data-addr-text="' +
       escapeHtml(t) +
-      '">' +
-      escapeHtml(t) +
-      '</span>'
+      '">***</span>'
     );
   }
 
@@ -3066,13 +3064,14 @@
 
   function addrEyeButton() {
     return (
-      '<button type="button" class="addr-eye" data-addr-eye="1" title="隐藏手机号和地址" aria-label="隐藏手机号和地址" aria-pressed="false">' +
+      '<button type="button" class="addr-eye" data-addr-eye="1" title="显示手机号和地址" aria-label="显示手机号和地址" aria-pressed="false">' +
       EYE_ICON +
       EYE_OFF_ICON +
       '</button>'
     );
   }
 
+  /** masked=true 显示 ***，false 写回原文并让眼睛变睁眼态 */
   function setAddressRowMasked(row, masked) {
     if (!row) return;
     row.classList.toggle('is-masked', masked);
@@ -3081,18 +3080,18 @@
     });
     var eye = row.querySelector('[data-addr-eye]');
     if (!eye) return;
-    eye.classList.toggle('is-off', masked);
-    eye.setAttribute('aria-pressed', masked ? 'true' : 'false');
+    eye.classList.toggle('is-revealed', !masked);
+    eye.setAttribute('aria-pressed', masked ? 'false' : 'true');
     var label = masked ? '显示手机号和地址' : '隐藏手机号和地址';
     eye.setAttribute('title', label);
     eye.setAttribute('aria-label', label);
   }
 
-  /** 重新渲染表格后把之前隐藏过的行继续保持隐藏 */
-  function applyAddressMask(container) {
+  /** 默认全部隐藏；重新渲染表格后，本次会话里点开过的行继续保持显示 */
+  function applyAddressPrivacy(container) {
     if (!container) return;
     container.querySelectorAll('[data-addr-row]').forEach(function (row) {
-      setAddressRowMasked(row, !!maskedAddressRows[row.getAttribute('data-addr-row')]);
+      setAddressRowMasked(row, !revealedAddressRows[row.getAttribute('data-addr-row')]);
     });
   }
 
@@ -3107,10 +3106,10 @@
       var row = eye.closest('[data-addr-row]');
       if (!row) return;
       var key = row.getAttribute('data-addr-row');
-      var next = !maskedAddressRows[key];
-      if (next) maskedAddressRows[key] = true;
-      else delete maskedAddressRows[key];
-      setAddressRowMasked(row, next);
+      var reveal = !revealedAddressRows[key];
+      if (reveal) revealedAddressRows[key] = true;
+      else delete revealedAddressRows[key];
+      setAddressRowMasked(row, !reveal);
     });
   }
 
@@ -3219,7 +3218,7 @@
                 .join('') +
               '</tbody></table>'
             : '<p class="empty-hint">暂无待审核的地址修改申请</p>';
-          applyAddressMask(pendingEl);
+          applyAddressPrivacy(pendingEl);
 
           pendingEl.querySelectorAll('[data-addr-approve]').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -3262,7 +3261,7 @@
                 .join('') +
               '</tbody></table>'
             : '<p class="empty-hint">暂无用户填写收货地址</p>';
-          applyAddressMask(usersEl);
+          applyAddressPrivacy(usersEl);
         }
       })
       .catch(function (err) {
