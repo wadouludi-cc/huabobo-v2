@@ -9,3 +9,5 @@
 
 ## 测试
 - 冒烟：`cd backend && node scripts/smoke.js`（需先启动后端，健康检查 `/api/health`）。改动接口行为时要同步更新 `backend/scripts/smoke.js`，CI 的 backend / backend-pg / docker-image / deploy-test 都跑它。
+- 本地不污染 dev.db 的跑法：`DATABASE_URL=file:/tmp/hb-smoke.db PORT=3311 node src/seed.js` → 同环境变量起服务 → `SMOKE_BASE=http://127.0.0.1:3311 node scripts/smoke.js`（.env 不会覆盖已存在的环境变量）。
+- 改后台静态文件（admin.js/admin.css）时同步改 `backend/public/admin/index.html` 里的 `?v=` 版本号，否则用户浏览器用旧缓存。
