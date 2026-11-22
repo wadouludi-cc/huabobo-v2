@@ -303,4 +303,16 @@ admin.patch(
   })
 );
 
+/** DELETE /api/admin/custom-orders/:id — 删除订单，用户「我的」页面同步不再显示 */
+admin.delete(
+  '/:id',
+  asyncHandler(async function (req, res) {
+    const { customOrders } = dbm.schema;
+    const rows = await dbm.db.select().from(customOrders).where(eq(customOrders.id, req.params.id)).limit(1);
+    if (!rows.length) return res.status(404).json({ ok: false, message: '订单不存在或已被删除' });
+    await dbm.db.delete(customOrders).where(eq(customOrders.id, req.params.id));
+    res.json({ ok: true, message: '已删除' });
+  })
+);
+
 module.exports = { publicRouter: router, adminRouter: admin, VALID_STATUS, STATUS_LABEL };

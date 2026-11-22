@@ -251,4 +251,16 @@ admin.patch(
   })
 );
 
+/** DELETE /api/admin/print-orders/:id — 删除打印申请，用户「我的」页面同步不再显示 */
+admin.delete(
+  '/:id',
+  asyncHandler(async function (req, res) {
+    const { printOrders } = dbm.schema;
+    const rows = await dbm.db.select().from(printOrders).where(eq(printOrders.id, req.params.id)).limit(1);
+    if (!rows.length) return res.status(404).json({ ok: false, message: '打印申请不存在或已被删除' });
+    await dbm.db.delete(printOrders).where(eq(printOrders.id, req.params.id));
+    res.json({ ok: true, message: '已删除' });
+  })
+);
+
 module.exports = { publicRouter: router, adminRouter: admin, VALID_STATUS, STATUS_LABEL };

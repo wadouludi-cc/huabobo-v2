@@ -2681,6 +2681,9 @@
               '<button type="button" class="btn btn-ghost" data-print-view="' +
               escapeHtml(o.id) +
               '">查看详情</button>' +
+              '<button type="button" class="btn btn-danger" data-print-del="' +
+              escapeHtml(o.id) +
+              '">删除</button>' +
               '</div></td></tr>'
             );
           })
@@ -2690,6 +2693,12 @@
       wrap.querySelectorAll('[data-print-view]').forEach(function (btn) {
         btn.addEventListener('click', function () {
           openPrintDetail(btn.getAttribute('data-print-view'));
+        });
+      });
+
+      wrap.querySelectorAll('[data-print-del]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+          deletePrintOrder(btn.getAttribute('data-print-del'), btn);
         });
       });
 
@@ -2753,6 +2762,36 @@
     var w = item.work || {};
     if (w.title) return w.title;
     return item.workId ? '（作品已删除）' : '（未保存作品）';
+  }
+
+  /** 删除打印申请：后端硬删除，用户「我的」页面的打印进度随之消失 */
+  function deletePrintOrder(id, btn) {
+    var item = printOrderCache[id];
+    if (!item) {
+      alert('申请数据已失效，请刷新列表后重试');
+      return;
+    }
+    if (
+      !confirm(
+        '确定删除打印申请「' +
+          printWorkTitle(item) +
+          '」？\n删除后该用户的「我的」页面不再显示这条申请，且不可恢复。'
+      )
+    ) {
+      return;
+    }
+    if (btn) btn.disabled = true;
+    api('/api/admin/print-orders/' + encodeURIComponent(id), { method: 'DELETE' })
+      .then(function () {
+        delete printOrderCache[id];
+        var modal = document.getElementById('print-detail-modal');
+        if (modal && !modal.hidden) closePrintDetail();
+        return loadPrints();
+      })
+      .catch(function (err) {
+        if (btn) btn.disabled = false;
+        alert(err.message || '删除失败');
+      });
   }
 
   function renderPrintDetail(item) {
@@ -2829,6 +2868,10 @@
       '<div class="order-status-actions">' +
       statusBtns +
       '</div>' +
+      '<div class="order-danger-actions">' +
+      '<button type="button" class="btn btn-danger" id="btn-print-delete">删除该申请</button>' +
+      '<span class="editor-section-hint">删除后用户「我的」页面不再显示这条申请</span>' +
+      '</div>' +
       '</div></div>';
 
     body.querySelectorAll('[data-print-status]').forEach(function (btn) {
@@ -2856,6 +2899,13 @@
     if (downloadBtn) {
       downloadBtn.addEventListener('click', function () {
         downloadPrintStl(item);
+      });
+    }
+
+    var delBtn = document.getElementById('btn-print-delete');
+    if (delBtn) {
+      delBtn.addEventListener('click', function () {
+        deletePrintOrder(item.id, delBtn);
       });
     }
 
@@ -3155,9 +3205,16 @@
                 escapeHtml(o.statusLabel || orderStatusLabel(o.status)) +
                 '</span></td><td>' +
                 escapeHtml(o.createdAt || '') +
-                '</td><td class="cell-actions"><button type="button" class="btn btn-ghost" data-order-view="' +
+                '</td><td class="cell-actions"><div class="table-actions">' +
+                '<button type="button" class="btn btn-ghost" data-order-view="' +
                 escapeHtml(o.id) +
-                '">查看详情</button></td></tr>'
+                '">查看详情</button>' +
+                '<button type="button" class="btn btn-danger" data-order-del="' +
+                escapeHtml(o.id) +
+                '" data-order-title="' +
+                escapeHtml((w && w.title) || '') +
+                '">删除</button>' +
+                '</div></td></tr>'
               );
             })
             .join('') +
@@ -3166,6 +3223,16 @@
         wrap.querySelectorAll('[data-order-view]').forEach(function (btn) {
           btn.addEventListener('click', function () {
             openOrderDetail(btn.getAttribute('data-order-view'));
+          });
+        });
+
+        wrap.querySelectorAll('[data-order-del]').forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            deleteCustomOrder(
+              btn.getAttribute('data-order-del'),
+              btn.getAttribute('data-order-title'),
+              btn
+            );
           });
         });
       })
@@ -3284,6 +3351,10 @@
       addressNote +
       '<h4>更新状态</h4>' +
       '<div class="order-status-actions" id="order-status-actions">' + statusBtns + '</div>' +
+      '<div class="order-danger-actions">' +
+      '<button type="button" class="btn btn-danger" id="btn-order-delete">删除该订单</button>' +
+      '<span class="editor-section-hint">删除后用户「我的」页面不再显示这个订单</span>' +
+      '</div>' +
       '</div></div>' +
       '<h4>三维模型</h4>' +
       '<div class="order-model-grid" id="order-model-grid"></div>';
@@ -3299,6 +3370,13 @@
       gotoAddrBtn.addEventListener('click', function () {
         closeOrderDetail();
         switchPanel('addresses');
+      });
+    }
+
+    var delOrderBtn = document.getElementById('btn-order-delete');
+    if (delOrderBtn) {
+      delOrderBtn.addEventListener('click', function () {
+        deleteCustomOrder(o.id, w.title, delOrderBtn);
       });
     }
 
@@ -3356,6 +3434,30 @@
       .catch(function (err) {
         if (btn) btn.disabled = false;
         alert(err.message || '状态更新失败');
+      });
+  }
+
+  /** 删除订单：后端硬删除，用户「我的」页面的定制订单随之消失 */
+  function deleteCustomOrder(id, title, btn) {
+    if (
+      !confirm(
+        '确定删除订单「' +
+          (title || id) +
+          '」？\n删除后该用户的「我的」页面不再显示这个订单，且不可恢复。'
+      )
+    ) {
+      return;
+    }
+    if (btn) btn.disabled = true;
+    api('/api/admin/custom-orders/' + encodeURIComponent(id), { method: 'DELETE' })
+      .then(function () {
+        var modal = document.getElementById('order-detail-modal');
+        if (modal && !modal.hidden) closeOrderDetail();
+        return loadOrders();
+      })
+      .catch(function (err) {
+        if (btn) btn.disabled = false;
+        alert(err.message || '删除失败');
       });
   }
 

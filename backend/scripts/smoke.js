@@ -423,7 +423,55 @@ async function req(method, path, body, token) {
       synced.status === 'handling' && synced.statusLabel === '处理中',
       synced
     );
+
+    // 后台删除打印申请后，用户「我的」页面必须不再出现这条申请
+    r = await req('DELETE', '/api/admin/print-orders/' + myPrints[0].id, undefined, utoken);
+    check('print delete as normal user 403', r.status === 403, r);
+    r = await req('DELETE', '/api/admin/print-orders/' + myPrints[0].id);
+    check('print delete without token 401', r.status === 401, r);
+    r = await req('DELETE', '/api/admin/print-orders/' + myPrints[0].id, undefined, token);
+    check('admin print delete 200', r.status === 200 && r.data.ok === true, r);
+    r = await req('GET', '/api/print-orders/mine', undefined, utoken);
+    check(
+      'deleted print order gone from mine',
+      ((r.data.data && r.data.data.list) || []).every(function (o) {
+        return o.id !== myPrints[0].id;
+      }),
+      r.data
+    );
+    r = await req('DELETE', '/api/admin/print-orders/' + myPrints[0].id, undefined, token);
+    check('deleted print order 404 on repeat', r.status === 404, r);
   }
+
+  // 定制订单：后台删除后用户「我的」页面同步移除
+  r = await req('POST', '/api/works', { title: 'CI定制作品' }, utoken);
+  const cwid = r.data.data && r.data.data.id;
+  r = await req('POST', '/api/custom-orders', { workId: cwid, artisanId: aid }, utoken);
+  check('custom order 201', r.status === 201 && !!(r.data.data && r.data.data.id), r);
+  const coid = r.data.data && r.data.data.id;
+  if (coid) {
+    r = await req('GET', '/api/custom-orders/mine', undefined, utoken);
+    check(
+      'my custom orders 200 includes new order',
+      ((r.data.data && r.data.data.list) || []).some(function (o) {
+        return o.id === coid;
+      }),
+      r.data
+    );
+    r = await req('DELETE', '/api/admin/custom-orders/' + coid, undefined, token);
+    check('admin custom order delete 200', r.status === 200 && r.data.ok === true, r);
+    r = await req('GET', '/api/custom-orders/mine', undefined, utoken);
+    check(
+      'deleted custom order gone from mine',
+      ((r.data.data && r.data.data.list) || []).every(function (o) {
+        return o.id !== coid;
+      }),
+      r.data
+    );
+    r = await req('DELETE', '/api/admin/custom-orders/' + coid, undefined, token);
+    check('deleted custom order 404 on repeat', r.status === 404, r);
+  }
+  await req('DELETE', '/api/works/' + cwid, undefined, utoken);
 
   r = await req('DELETE', '/api/admin/studio-models/' + mid, undefined, token);
   check('model delete 200', r.status === 200, r);
