@@ -3025,6 +3025,95 @@
     );
   }
 
+  /* ===== 地址审核：每行一个眼睛按钮，点一下把手机号和地址换成 *** =====
+     隐藏状态只存在内存里（key 形如 p-申请ID / a-地址ID），刷新页面恢复明文 */
+  var maskedAddressRows = {};
+  var EYE_ICON =
+    '<svg class="icon-eye" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M2 12s3.6-6.4 10-6.4S22 12 22 12s-3.6 6.4-10 6.4S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></svg>';
+  var EYE_OFF_ICON =
+    '<svg class="icon-eye-off" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
+    '<path d="M10.6 6.1A9.9 9.9 0 0 1 12 6c6.4 0 10 6 10 6a17.6 17.6 0 0 1-3.2 3.9"/>' +
+    '<path d="M6.4 8.1A17.4 17.4 0 0 0 2 12s3.6 6 10 6a9.9 9.9 0 0 0 4.1-.9"/>' +
+    '<path d="M9.9 10a3 3 0 0 0 4.1 4.1"/><path d="m3 3 18 18"/></svg>';
+
+  /** 手机号/地址这类隐私文本：保留原文在 data 属性里，隐藏时直接换成 *** */
+  function addrSecretText(text, extraClass) {
+    var t = String(text || '');
+    if (!t) return '—';
+    return (
+      '<span class="addr-secret' +
+      (extraClass ? ' ' + extraClass : '') +
+      '" data-addr-text="' +
+      escapeHtml(t) +
+      '">' +
+      escapeHtml(t) +
+      '</span>'
+    );
+  }
+
+  /** 申请表格里的「原地址/新地址」：姓名保持可见，手机号与地址可隐藏 */
+  function fmtMaskedAddressCell(name, phone, address) {
+    if (!address && !phone) return '—';
+    return (
+      escapeHtml(name || '') +
+      ' ' +
+      addrSecretText(phone) +
+      '<br>' +
+      addrSecretText(address, 'address-line')
+    );
+  }
+
+  function addrEyeButton() {
+    return (
+      '<button type="button" class="addr-eye" data-addr-eye="1" title="隐藏手机号和地址" aria-label="隐藏手机号和地址" aria-pressed="false">' +
+      EYE_ICON +
+      EYE_OFF_ICON +
+      '</button>'
+    );
+  }
+
+  function setAddressRowMasked(row, masked) {
+    if (!row) return;
+    row.classList.toggle('is-masked', masked);
+    row.querySelectorAll('.addr-secret').forEach(function (el) {
+      el.textContent = masked ? '***' : el.getAttribute('data-addr-text') || '';
+    });
+    var eye = row.querySelector('[data-addr-eye]');
+    if (!eye) return;
+    eye.classList.toggle('is-off', masked);
+    eye.setAttribute('aria-pressed', masked ? 'true' : 'false');
+    var label = masked ? '显示手机号和地址' : '隐藏手机号和地址';
+    eye.setAttribute('title', label);
+    eye.setAttribute('aria-label', label);
+  }
+
+  /** 重新渲染表格后把之前隐藏过的行继续保持隐藏 */
+  function applyAddressMask(container) {
+    if (!container) return;
+    container.querySelectorAll('[data-addr-row]').forEach(function (row) {
+      setAddressRowMasked(row, !!maskedAddressRows[row.getAttribute('data-addr-row')]);
+    });
+  }
+
+  /** 表格容器只绑一次事件，重新渲染 innerHTML 不影响 */
+  function bindAddressMask(container) {
+    if (!container || container.getAttribute('data-mask-bound') === '1') return;
+    container.setAttribute('data-mask-bound', '1');
+    container.addEventListener('click', function (e) {
+      var target = e.target;
+      var eye = target && target.closest ? target.closest('[data-addr-eye]') : null;
+      if (!eye || !container.contains(eye)) return;
+      var row = eye.closest('[data-addr-row]');
+      if (!row) return;
+      var key = row.getAttribute('data-addr-row');
+      var next = !maskedAddressRows[key];
+      if (next) maskedAddressRows[key] = true;
+      else delete maskedAddressRows[key];
+      setAddressRowMasked(row, next);
+    });
+  }
+
   function refreshAddressBadge() {
     return api('/api/admin/addresses/pending-count')
       .then(function (res) {
@@ -3102,29 +3191,35 @@
         }
 
         if (pendingEl) {
+          bindAddressMask(pendingEl);
           pendingEl.innerHTML = pending.length
-            ? '<table class="data-table"><thead><tr><th>用户</th><th>原地址</th><th>新地址</th><th>申请时间</th><th class="cell-actions">操作</th></tr></thead><tbody>' +
+            ? '<table class="data-table"><thead><tr><th>用户</th><th>原地址</th><th>新地址</th><th>申请时间</th><th class="cell-actions">操作</th><th class="cell-eye">隐私</th></tr></thead><tbody>' +
               pending
                 .map(function (r) {
                   return (
-                    '<tr><td>' +
+                    '<tr data-addr-row="p-' +
+                    escapeHtml(r.id) +
+                    '"><td>' +
                     escapeHtml(addressUserLabel(r.user)) +
                     '</td><td class="address-cell">' +
-                    fmtAddressCell(r.oldName, r.oldPhone, r.oldAddress) +
+                    fmtMaskedAddressCell(r.oldName, r.oldPhone, r.oldAddress) +
                     '</td><td class="address-cell address-cell--new">' +
-                    fmtAddressCell(r.newName, r.newPhone, r.newAddress) +
+                    fmtMaskedAddressCell(r.newName, r.newPhone, r.newAddress) +
                     '</td><td>' +
                     escapeHtml(r.createdAt || '') +
                     '</td><td class="cell-actions"><button type="button" class="btn btn-primary" data-addr-approve="' +
                     escapeHtml(r.id) +
                     '">同意</button><button type="button" class="btn btn-ghost" data-addr-reject="' +
                     escapeHtml(r.id) +
-                    '">不同意</button></td></tr>'
+                    '">不同意</button></td><td class="cell-eye">' +
+                    addrEyeButton() +
+                    '</td></tr>'
                   );
                 })
                 .join('') +
               '</tbody></table>'
             : '<p class="empty-hint">暂无待审核的地址修改申请</p>';
+          applyAddressMask(pendingEl);
 
           pendingEl.querySelectorAll('[data-addr-approve]').forEach(function (btn) {
             btn.addEventListener('click', function () {
@@ -3141,27 +3236,33 @@
         }
 
         if (usersEl) {
+          bindAddressMask(usersEl);
           usersEl.innerHTML = list.length
-            ? '<table class="data-table"><thead><tr><th>用户</th><th>收货人</th><th>手机号</th><th>收货地址</th><th>更新时间</th></tr></thead><tbody>' +
+            ? '<table class="data-table"><thead><tr><th>用户</th><th>收货人</th><th>手机号</th><th>收货地址</th><th>更新时间</th><th class="cell-eye">隐私</th></tr></thead><tbody>' +
               list
                 .map(function (a) {
                   return (
-                    '<tr><td>' +
+                    '<tr data-addr-row="a-' +
+                    escapeHtml(a.id) +
+                    '"><td>' +
                     escapeHtml(addressUserLabel(a.user)) +
                     '</td><td>' +
                     escapeHtml(a.name || '') +
                     '</td><td>' +
-                    escapeHtml(a.phone || '') +
-                    '</td><td class="address-cell"><span class="address-line">' +
-                    escapeHtml(a.address || '') +
-                    '</span></td><td>' +
+                    addrSecretText(a.phone) +
+                    '</td><td class="address-cell">' +
+                    addrSecretText(a.address, 'address-line') +
+                    '</td><td>' +
                     escapeHtml(a.updatedAt || '') +
+                    '</td><td class="cell-eye">' +
+                    addrEyeButton() +
                     '</td></tr>'
                   );
                 })
                 .join('') +
               '</tbody></table>'
             : '<p class="empty-hint">暂无用户填写收货地址</p>';
+          applyAddressMask(usersEl);
         }
       })
       .catch(function (err) {

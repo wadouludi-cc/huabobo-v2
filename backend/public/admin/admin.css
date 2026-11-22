@@ -1243,6 +1243,62 @@ body.admin-auth .app {
   word-break: break-all;
 }
 
+/* 地址审核：最右侧的眼睛按钮，点一下把手机号和地址换成 *** */
+.data-table th.cell-eye,
+.data-table td.cell-eye {
+  width: 56px;
+  text-align: center;
+  white-space: nowrap;
+}
+
+.addr-eye {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
+}
+
+.addr-eye:hover {
+  color: var(--ink);
+  border-color: rgba(30, 77, 107, 0.3);
+}
+
+.addr-eye:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+
+.addr-eye .icon-eye-off {
+  display: none;
+}
+
+.addr-eye.is-off {
+  color: var(--primary);
+  border-color: rgba(196, 30, 58, 0.35);
+  background: rgba(196, 30, 58, 0.06);
+}
+
+.addr-eye.is-off .icon-eye {
+  display: none;
+}
+
+.addr-eye.is-off .icon-eye-off {
+  display: block;
+}
+
+tr.is-masked .addr-secret {
+  color: var(--ink-soft);
+  letter-spacing: 2px;
+}
+
 .data-table td .btn + .btn {
   margin-left: 6px;
 }
