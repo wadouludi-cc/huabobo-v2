@@ -136,6 +136,42 @@
     }
   }
 
+  /** 推送订单音效（叮咚）：点击时立刻播，失败时停掉，避免误以为推送成功 */
+  var ORDER_SOUND_SRC = 'audio/order-push.mp3';
+  var orderSound = null;
+
+  function getOrderSound() {
+    if (!orderSound) {
+      try {
+        orderSound = new Audio(ORDER_SOUND_SRC);
+        orderSound.preload = 'auto';
+        orderSound.volume = 0.9;
+      } catch (e) {
+        orderSound = null;
+      }
+    }
+    return orderSound;
+  }
+
+  function playOrderSound() {
+    var a = getOrderSound();
+    if (!a) return;
+    try {
+      a.currentTime = 0;
+    } catch (e) {}
+    var p = a.play();
+    /* 浏览器拒绝自动播放时静默忽略，不影响下单流程 */
+    if (p && typeof p.catch === 'function') p.catch(function () {});
+  }
+
+  function stopOrderSound() {
+    if (!orderSound) return;
+    try {
+      orderSound.pause();
+      orderSound.currentTime = 0;
+    } catch (e) {}
+  }
+
   function maskPhone(p) {
     var s = String(p || '');
     return s.length === 11 ? s.slice(0, 3) + '****' + s.slice(7) : s;
@@ -146,6 +182,7 @@
     if (!btn || !workId) return;
     var msgEl = document.getElementById('order-push-msg');
     var shipEl = document.getElementById('order-ship-info');
+    getOrderSound(); // 提前加载音效，首次点击不延迟
 
     function renderShip(addr, pending) {
       if (!shipEl) return;
@@ -189,6 +226,7 @@
         }
         return;
       }
+      playOrderSound();
       btn.disabled = true;
       var oldText = btn.textContent;
       btn.textContent = '推送中…';
@@ -221,9 +259,13 @@
             throw new Error((res.data && res.data.message) || '推送失败，请稍后重试');
           }
           btn.textContent = '已推送，正在跳转到我的主页…';
-          window.location.href = 'profile.html?id=me';
+          /* 留出「叮咚」的播放时间再跳转，避免跳页把音效截断 */
+          setTimeout(function () {
+            window.location.href = 'profile.html?id=me';
+          }, 1800);
         })
         .catch(function (err) {
+          stopOrderSound();
           btn.disabled = false;
           btn.textContent = oldText;
           if (err.code === 'ADDRESS_REQUIRED') {
