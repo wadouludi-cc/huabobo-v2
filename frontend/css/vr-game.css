@@ -1,0 +1,346 @@
+/* 指间塑 — VR互动 面塑凤凰 游戏界面
+   覆盖式 HUD：明亮卡通渲染场景 + 半透明毛玻璃教学 UI */
+
+.vr-game-body {
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: #d9e2ea;
+  height: 100vh;
+  height: 100dvh;
+}
+
+.game-root {
+  position: relative;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+  background: radial-gradient(circle at 50% 40%, #eef3f6 0%, #cdd9e4 100%);
+}
+
+#vr-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  display: block;
+  touch-action: none;
+  cursor: grab;
+}
+#vr-canvas.is-pressing { cursor: grabbing; }
+
+.hidden { display: none !important; }
+
+/* ——— 顶部条 ——— */
+.game-topbar {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 14px 22px;
+  background: linear-gradient(180deg, rgba(20, 24, 36, 0.42), rgba(20, 24, 36, 0));
+  color: #fff;
+  z-index: 20;
+  pointer-events: none;
+}
+.game-topbar > * { pointer-events: auto; }
+.game-back {
+  font-size: 0.9rem;
+  font-weight: 600;
+  padding: 7px 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  transition: background 0.2s;
+}
+.game-back:hover { background: rgba(255, 255, 255, 0.3); }
+.game-title {
+  font-family: var(--font-kai);
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+}
+.game-topbar-actions { margin-left: auto; display: flex; gap: 8px; }
+.game-icon-btn {
+  width: 38px; height: 38px;
+  border: none;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.18);
+  backdrop-filter: blur(8px);
+  color: #fff;
+  font-size: 1.05rem;
+  cursor: pointer;
+  transition: background 0.2s, transform 0.2s;
+}
+.game-icon-btn:hover { background: rgba(255, 255, 255, 0.32); transform: translateY(-1px); }
+
+/* ——— 老奶奶教学气泡 ——— */
+.coach {
+  position: absolute;
+  top: 76px;
+  left: 22px;
+  max-width: 340px;
+  display: flex;
+  gap: 12px;
+  padding: 14px 16px;
+  background: rgba(255, 255, 255, 0.92);
+  border: 1px solid rgba(196, 30, 58, 0.14);
+  border-radius: 18px 18px 18px 4px;
+  box-shadow: 0 10px 30px rgba(20, 24, 36, 0.14);
+  z-index: 18;
+  backdrop-filter: blur(12px);
+  animation: coach-in 0.45s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes coach-in {
+  from { opacity: 0; transform: translateX(-14px) scale(0.96); }
+  to { opacity: 1; transform: none; }
+}
+.coach-avatar {
+  flex: 0 0 46px;
+  width: 46px; height: 46px;
+  display: grid; place-items: center;
+  font-size: 1.7rem;
+  background: var(--primary-light);
+  border-radius: 50%;
+}
+.coach-name {
+  font-size: 0.74rem;
+  color: var(--primary);
+  font-weight: 700;
+  letter-spacing: 1px;
+  margin-bottom: 2px;
+}
+.coach-text {
+  font-size: 0.9rem;
+  line-height: 1.6;
+  color: var(--ink);
+}
+
+/* ——— 八法步骤条 ——— */
+.technique-bar {
+  position: absolute;
+  top: 76px;
+  right: 22px;
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 5px;
+  padding: 8px;
+  background: rgba(255, 255, 255, 0.82);
+  border-radius: 14px;
+  box-shadow: 0 8px 26px rgba(20, 24, 36, 0.12);
+  backdrop-filter: blur(12px);
+  z-index: 18;
+}
+.tech-step {
+  width: 44px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 6px 2px 5px;
+  border: none;
+  border-radius: 10px;
+  background: transparent;
+  color: var(--ink-soft);
+  cursor: pointer;
+  transition: all 0.25s;
+}
+.tech-zi {
+  font-family: var(--font-kai);
+  font-size: 1.4rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+.tech-label { font-size: 0.62rem; white-space: nowrap; }
+.tech-step.is-done { background: #e7f4ea; color: #2e7d4f; }
+.tech-step.is-done .tech-zi::after { content: ' ✓'; font-family: var(--font); font-size: 0.7rem; }
+.tech-step.is-current {
+  background: var(--primary);
+  color: #fff;
+  box-shadow: 0 6px 16px rgba(196, 30, 58, 0.32);
+  transform: translateY(-2px);
+}
+.tech-step.is-locked { opacity: 0.42; }
+
+/* ——— 任务卡 ——— */
+.task-card {
+  position: absolute;
+  left: 50%;
+  bottom: 88px;
+  transform: translateX(-50%);
+  width: min(520px, calc(100vw - 40px));
+  padding: 14px 18px 16px;
+  background: rgba(255, 255, 255, 0.93);
+  border-radius: 16px;
+  box-shadow: 0 12px 34px rgba(20, 24, 36, 0.16);
+  backdrop-filter: blur(12px);
+  z-index: 18;
+  animation: task-in 0.4s ease;
+}
+@keyframes task-in {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+.task-head { display: flex; align-items: center; gap: 14px; }
+.task-tech {
+  flex: 0 0 50px;
+  width: 50px; height: 50px;
+  display: grid; place-items: center;
+  font-family: var(--font-kai);
+  font-size: 1.9rem;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(145deg, var(--primary), var(--primary-dark));
+  border-radius: 14px;
+  box-shadow: 0 6px 14px rgba(196, 30, 58, 0.3);
+}
+.task-title { font-size: 1rem; font-weight: 700; color: var(--ink); }
+.task-desc { font-size: 0.8rem; color: var(--ink-soft); line-height: 1.4; }
+.task-progress {
+  margin-top: 12px;
+  height: 8px;
+  border-radius: 99px;
+  background: #eef1f5;
+  overflow: hidden;
+}
+.task-progress-fill {
+  height: 100%;
+  width: 0%;
+  border-radius: 99px;
+  background: linear-gradient(90deg, #f0a44a, var(--primary));
+  transition: width 0.12s linear;
+}
+
+/* ——— 手势提示 ——— */
+.hand-hint {
+  position: absolute;
+  left: 50%;
+  bottom: 52px;
+  transform: translateX(-50%);
+  font-size: 0.78rem;
+  color: #fff;
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
+  z-index: 18;
+  white-space: nowrap;
+}
+.hand-arrow { font-size: 1.1rem; animation: nudge 1.1s ease-in-out infinite; display: inline-block; }
+@keyframes nudge { 0%, 100% { transform: translateY(-3px); } 50% { transform: translateY(3px); } }
+
+/* ——— 遮罩层 ——— */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: radial-gradient(circle at 50% 35%, rgba(255, 246, 240, 0.86), rgba(30, 77, 107, 0.72));
+  backdrop-filter: blur(6px);
+  z-index: 40;
+}
+.overlay-card {
+  width: min(560px, 100%);
+  padding: 40px clamp(24px, 5vw, 48px);
+  text-align: center;
+  background: rgba(255, 255, 255, 0.96);
+  border-radius: 24px;
+  box-shadow: 0 24px 70px rgba(20, 24, 36, 0.22);
+  animation: card-in 0.55s cubic-bezier(0.2, 0.9, 0.3, 1.15);
+}
+@keyframes card-in {
+  from { opacity: 0; transform: translateY(18px) scale(0.97); }
+  to { opacity: 1; transform: none; }
+}
+.overlay-eyebrow {
+  display: inline-block;
+  font-size: 0.74rem;
+  font-weight: 700;
+  letter-spacing: 2px;
+  color: var(--primary);
+  padding: 5px 14px;
+  background: var(--primary-light);
+  border-radius: 99px;
+  margin-bottom: 18px;
+}
+.overlay-title {
+  font-family: var(--font-kai);
+  font-size: clamp(2.2rem, 6vw, 3rem);
+  line-height: 1.18;
+  color: var(--ink);
+  margin-bottom: 16px;
+}
+.overlay-title span { color: var(--primary); }
+.overlay-desc {
+  color: var(--ink-soft);
+  font-size: 0.95rem;
+  line-height: 1.85;
+  margin-bottom: 24px;
+}
+.overlay-steps {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 28px;
+}
+.overlay-steps div {
+  font-size: 0.82rem;
+  color: var(--ink-soft);
+  padding: 7px 14px;
+  border: 1px solid var(--border);
+  border-radius: 99px;
+}
+.overlay-steps span {
+  display: inline-grid;
+  place-items: center;
+  width: 19px; height: 19px;
+  margin-right: 5px;
+  font-size: 0.7rem;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 50%;
+}
+.overlay-cta { padding: 13px 30px; font-size: 1rem; }
+.overlay-tip { margin-top: 16px; font-size: 0.76rem; color: #9aa2b4; }
+.finish-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+.finish-actions .btn { padding: 12px 26px; }
+
+/* ——— 加载与提示 ——— */
+.model-loading {
+  position: absolute;
+  left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  padding: 12px 22px;
+  font-size: 0.9rem;
+  color: #fff;
+  background: rgba(20, 24, 36, 0.6);
+  border-radius: 12px;
+  z-index: 30;
+}
+.fallback-notice {
+  position: absolute;
+  right: 22px; bottom: 20px;
+  max-width: 300px;
+  padding: 10px 14px;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  color: #fff;
+  background: rgba(30, 77, 107, 0.8);
+  border-radius: 10px;
+  z-index: 19;
+}
+
+@media (max-width: 720px) {
+  .game-title { font-size: 0.95rem; }
+  .coach { top: 66px; left: 12px; right: 12px; max-width: none; padding: 10px 12px; }
+  .coach-text { font-size: 0.82rem; }
+  .technique-bar { top: auto; bottom: 172px; right: 50%; transform: translateX(50%); gap: 2px; padding: 5px; }
+  .tech-step { width: 34px; padding: 4px 1px; }
+  .tech-zi { font-size: 1.1rem; }
+  .tech-label { font-size: 0.52rem; }
+  .task-card { bottom: 60px; }
+  .hand-hint { bottom: 40px; font-size: 0.7rem; }
+  .overlay-card { padding: 30px 20px; }
+}

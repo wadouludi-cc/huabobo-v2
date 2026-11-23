@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>VR互动 · 面塑凤凰 — 指间塑</title>
+  <link rel="stylesheet" href="css/style.css?v=20261117c">
+  <link rel="stylesheet" href="css/vr-game.css?v=20261123a">
+</head>
+<body class="vr-game-body">
+  <div id="game" class="game-root">
+    <canvas id="vr-canvas"></canvas>
+
+    <!-- 顶部 bar -->
+    <header class="game-topbar">
+      <a href="vr.html" class="game-back" title="返回 VR互动">← 返回</a>
+      <div class="game-title">面塑凤凰 · 八法匠心</div>
+      <div class="game-topbar-actions">
+        <button type="button" id="btn-sound" class="game-icon-btn" title="音效开关" aria-label="音效开关">🔊</button>
+        <button type="button" id="btn-fullscreen" class="game-icon-btn" title="全屏" aria-label="全屏">⛶</button>
+      </div>
+    </header>
+
+    <!-- 老奶奶教学气泡 -->
+    <div id="coach" class="coach hidden" aria-live="polite">
+      <div class="coach-avatar" aria-hidden="true">👵</div>
+      <div class="coach-body">
+        <div class="coach-name">面塑奶奶</div>
+        <div id="coach-text" class="coach-text"></div>
+      </div>
+    </div>
+
+    <!-- 手法提示：掤捋挤按采挒肘靠 -->
+    <div class="technique-bar" id="technique-bar" aria-label="太极八法步骤">
+      <button type="button" class="tech-step" data-step="0" title="掤：托起面团"><span class="tech-zi">掤</span><span class="tech-label">起面</span></button>
+      <button type="button" class="tech-step" data-step="1" title="捋：揉圆面团"><span class="tech-zi">捋</span><span class="tech-label">揉圆</span></button>
+      <button type="button" class="tech-step" data-step="2" title="挤：挤出凤凰身形"><span class="tech-zi">挤</span><span class="tech-label">塑身</span></button>
+      <button type="button" class="tech-step" data-step="3" title="按：按压贴合装饰"><span class="tech-zi">按</span><span class="tech-label">贴饰</span></button>
+      <button type="button" class="tech-step" data-step="4" title="采：采放黑豆点睛"><span class="tech-zi">采</span><span class="tech-label">点睛</span></button>
+      <button type="button" class="tech-step" data-step="5" title="挒：挒出花形尾羽"><span class="tech-zi">挒</span><span class="tech-label">制尾</span></button>
+      <button type="button" class="tech-step" data-step="6" title="肘：合拢三尾"><span class="tech-zi">肘</span><span class="tech-label">合尾</span></button>
+      <button type="button" class="tech-step" data-step="7" title="靠：整体组装成凤凰"><span class="tech-zi">靠</span><span class="tech-label">成凤</span></button>
+    </div>
+
+    <!-- 当前任务卡 -->
+    <div id="task-card" class="task-card hidden">
+      <div class="task-head">
+        <span id="task-tech" class="task-tech">掤</span>
+        <div>
+          <div id="task-title" class="task-title">托起面团</div>
+          <div id="task-desc" class="task-desc">按住鼠标左键向上拖动，感受面团在掌心成形</div>
+        </div>
+      </div>
+      <div class="task-progress"><div id="task-progress-fill" class="task-progress-fill"></div></div>
+    </div>
+
+    <!-- 交互光标提示 -->
+    <div id="hand-hint" class="hand-hint hidden">按住鼠标左键，按提示方向拖动 <span class="hand-arrow">↕</span></div>
+
+    <!-- 开始遮罩 -->
+    <div id="start-overlay" class="overlay">
+      <div class="overlay-card">
+        <div class="overlay-eyebrow">指间塑 · VR 互动体验</div>
+        <h1 class="overlay-title">面塑凤凰<br><span>八法匠心</span></h1>
+        <p class="overlay-desc">
+          第一人称走进胶东面塑作坊，面塑奶奶在你对面手把手教。
+          用「掤、捋、挤、按、采、挒、肘、靠」八法，把一团面慢慢捏成一只凤凰。
+        </p>
+        <div class="overlay-steps" aria-hidden="true">
+          <div><span>1</span> 揉面塑身</div>
+          <div><span>2</span> 贴饰点睛</div>
+          <div><span>3</span> 制尾成凤</div>
+        </div>
+        <button type="button" id="btn-start" class="btn btn-primary overlay-cta">进入作坊，开始制作 →</button>
+        <p class="overlay-tip">建议佩戴耳机 · 支持鼠标 / 触屏拖动</p>
+      </div>
+    </div>
+
+    <!-- 完成遮罩 -->
+    <div id="finish-overlay" class="overlay hidden">
+      <div class="overlay-card finish-card">
+        <div class="overlay-eyebrow">作品完成</div>
+        <h1 class="overlay-title">凤凰涅槃<br><span>指尖生花</span></h1>
+        <p class="overlay-desc">八法皆到位，三尾已成形。你的面塑凤凰出炉了！拖动鼠标可以360°欣赏你的作品。</p>
+        <div class="finish-actions">
+          <button type="button" id="btn-again" class="btn btn-primary">再捏一次</button>
+          <a href="vr.html" class="btn btn-outline">返回 VR互动</a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 加载提示 -->
+    <div id="model-loading" class="model-loading hidden">正在准备 3D 场景…</div>
+    <div id="fallback-notice" class="fallback-notice hidden"></div>
+  </div>
+
+  <script src="js/site-base.js"></script>
+  <script src="vendor/es-module-shims.js"></script>
+  <script type="importmap">
+  {
+    "imports": {
+      "three": "./vendor/three/three.module.js",
+      "three/addons/": "./vendor/three/addons/"
+    }
+  }
+  </script>
+  <script type="module" src="js/vr-game.js?v=20261123a"></script>
+</body>
+</html>

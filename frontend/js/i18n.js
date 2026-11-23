@@ -13,6 +13,7 @@
         digital: '数字化体验',
         gallery: '数字化展厅',
         artisans: '合作手艺人',
+        vr: 'VR互动',
         charity: '公益案例',
         news: '新闻资讯',
         about: '关于我们',
@@ -35,6 +36,7 @@
         digital: '数字化体验 — 指间塑',
         gallery: '数字化展厅 — 指间塑',
         artisans: '合作手艺人 — 指间塑',
+        vr: 'VR互动 — 指间塑',
         charity: '公益案例 — 指间塑',
         news: '新闻资讯 — 指间塑',
         about: '关于我们 — 指间塑',
@@ -161,6 +163,7 @@
         digital: 'Digital',
         gallery: 'Gallery',
         artisans: 'Artisans',
+        vr: 'VR Experience',
         charity: 'Charity',
         news: 'News',
         about: 'About',
@@ -183,6 +186,7 @@
         digital: 'Digital Experience — Zhijiansu',
         gallery: 'Digital Gallery — Zhijiansu',
         artisans: 'Partner Artisans — Zhijiansu',
+        vr: 'VR Experience — Zhijiansu',
         charity: 'Charity — Zhijiansu',
         news: 'News — Zhijiansu',
         about: 'About — Zhijiansu',
@@ -307,6 +311,7 @@
     'digital.html': 'nav.digital',
     'gallery.html': 'nav.gallery',
     'artisans.html': 'nav.artisans',
+    'vr.html': 'nav.vr',
     'huayang.html': 'nav.huayang'
   };
 
