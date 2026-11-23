@@ -1246,9 +1246,25 @@ body.admin-auth .app {
 /* 地址审核：最右侧的眼睛按钮，点一下把手机号和地址换成 *** */
 .data-table th.cell-eye,
 .data-table td.cell-eye {
-  width: 56px;
+  width: 44px;
   text-align: center;
   white-space: nowrap;
+}
+
+/* 打印申请 / 订单管理：多了隐私列后，宁可横向滚动也不要把表头和按钮压成多行 */
+.data-table-prints th,
+.data-table-orders th {
+  white-space: nowrap;
+}
+
+.data-table-prints .cell-actions,
+.data-table-orders .cell-actions {
+  white-space: nowrap;
+}
+
+.data-table-prints .cell-actions .table-actions,
+.data-table-orders .cell-actions .table-actions {
+  flex-wrap: nowrap;
 }
 
 .addr-eye {

@@ -2638,8 +2638,9 @@
       list.forEach(function (o) {
         printOrderCache[o.id] = o;
       });
+      bindAddressMask(wrap);
       wrap.innerHTML =
-        '<table class="data-table data-table-prints"><thead><tr><th class="cell-thumb">作品</th><th>作品名</th><th>申请人</th><th>收货地址</th><th>联系方式</th><th>状态</th><th>申请时间</th><th class="cell-actions">操作</th></tr></thead><tbody>' +
+        '<table class="data-table data-table-prints"><thead><tr><th class="cell-thumb">作品</th><th>作品名</th><th>申请人</th><th>收货地址</th><th>联系方式</th><th>状态</th><th>申请时间</th><th class="cell-actions">操作</th><th class="cell-eye">隐私</th></tr></thead><tbody>' +
         list
           .map(function (o) {
             var w = o.work || {};
@@ -2653,15 +2654,16 @@
             var ship = o.ship || {};
             var addrHtml = ship.address
               ? escapeHtml(ship.name || '—') +
-                '<br><span class="print-ship-phone">' +
-                escapeHtml(ship.phone || '') +
-                '</span><br><span class="print-ship-addr">' +
-                escapeHtml(ship.address) +
-                '</span>'
+                '<br>' +
+                addrSecretText(ship.phone, 'print-ship-phone') +
+                '<br>' +
+                addrSecretText(ship.address, 'print-ship-addr')
               : '<span class="print-ship-missing">未填写收货地址</span>';
             var user = o.user || {};
             return (
-              '<tr><td class="cell-thumb">' +
+              '<tr data-addr-row="pr-' +
+              escapeHtml(o.id) +
+              '"><td class="cell-thumb">' +
               thumb +
               '</td><td>' +
               escapeHtml(printWorkTitle(o)) +
@@ -2670,7 +2672,7 @@
               '</td><td class="print-addr-cell">' +
               addrHtml +
               '</td><td>' +
-              escapeHtml(o.contact || '—') +
+              addrSecretText(o.contact) +
               '</td><td><span class="order-status-tag is-' +
               escapeHtml(o.status) +
               '">' +
@@ -2684,11 +2686,14 @@
               '<button type="button" class="btn btn-danger" data-print-del="' +
               escapeHtml(o.id) +
               '">删除</button>' +
-              '</div></td></tr>'
+              '</div></td><td class="cell-eye">' +
+              addrEyeButton() +
+              '</td></tr>'
             );
           })
           .join('') +
         '</tbody></table>';
+      applyAddressPrivacy(wrap);
 
       wrap.querySelectorAll('[data-print-view]').forEach(function (btn) {
         btn.addEventListener('click', function () {
@@ -3013,20 +3018,8 @@
     return (u && (u.nickname || u.handle || u.username)) || '—';
   }
 
-  function fmtAddressCell(name, phone, address) {
-    if (!address) return '—';
-    return (
-      escapeHtml(name || '') +
-      ' ' +
-      escapeHtml(phone || '') +
-      '<br><span class="address-line">' +
-      escapeHtml(address) +
-      '</span>'
-    );
-  }
-
-  /* ===== 地址审核：手机号和地址默认隐藏，点行尾眼睛才显示 =====
-     显隐状态只存在内存里（key 形如 p-申请ID / a-地址ID），刷新页面回到默认隐藏 */
+  /* ===== 隐私遮罩（地址审核 / 打印申请 / 订单管理共用）：手机号和地址默认隐藏，点行尾眼睛才显示 =====
+     显隐状态只存在内存里（key 形如 a-地址ID / p-申请ID / pr-打印单ID / or-订单ID），刷新页面回到默认隐藏 */
   var revealedAddressRows = {};
   var EYE_ICON =
     '<svg class="icon-eye" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">' +
@@ -3280,8 +3273,9 @@
           wrap.innerHTML = '<p class="empty-hint">暂无定制订单</p>';
           return;
         }
+        bindAddressMask(wrap);
         wrap.innerHTML =
-          '<table class="data-table"><thead><tr><th class="cell-thumb">作品</th><th>作品名</th><th>用户</th><th>收货地址</th><th>手艺人</th><th>状态</th><th>推送时间</th><th class="cell-actions">操作</th></tr></thead><tbody>' +
+          '<table class="data-table data-table-orders"><thead><tr><th class="cell-thumb">作品</th><th>作品名</th><th>用户</th><th>收货地址</th><th>手艺人</th><th>状态</th><th>推送时间</th><th class="cell-actions">操作</th><th class="cell-eye">隐私</th></tr></thead><tbody>' +
           list
             .map(function (o) {
               var w = o.work || {};
@@ -3289,14 +3283,20 @@
                 ? '<img class="data-thumb" src="' + escapeHtml(adminUploadUrl(w.image)) + '" alt="">'
                 : '<span class="editor-section-hint">—</span>';
               return (
-                '<tr><td class="cell-thumb">' +
+                '<tr data-addr-row="or-' +
+                escapeHtml(o.id) +
+                '"><td class="cell-thumb">' +
                 thumb +
                 '</td><td>' +
                 escapeHtml(w.title || '作品已删除') +
                 '</td><td>' +
                 escapeHtml((o.user && (o.user.nickname || o.user.handle)) || '—') +
                 '</td><td class="address-cell">' +
-                fmtAddressCell((o.ship && o.ship.name) || '', (o.ship && o.ship.phone) || '', (o.ship && o.ship.address) || '') +
+                fmtMaskedAddressCell(
+                  (o.ship && o.ship.name) || '',
+                  (o.ship && o.ship.phone) || '',
+                  (o.ship && o.ship.address) || ''
+                ) +
                 '</td><td>' +
                 escapeHtml(o.artisanName || '—') +
                 '</td><td><span class="order-status-tag is-' +
@@ -3314,11 +3314,14 @@
                 '" data-order-title="' +
                 escapeHtml((w && w.title) || '') +
                 '">删除</button>' +
-                '</div></td></tr>'
+                '</div></td><td class="cell-eye">' +
+                addrEyeButton() +
+                '</td></tr>'
               );
             })
             .join('') +
           '</tbody></table>';
+        applyAddressPrivacy(wrap);
 
         wrap.querySelectorAll('[data-order-view]').forEach(function (btn) {
           btn.addEventListener('click', function () {
