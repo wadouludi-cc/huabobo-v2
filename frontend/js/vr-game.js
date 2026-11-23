@@ -232,7 +232,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
   // ——— 面塑凤凰（逐步显现） ———
   var phoenix = new THREE.Group();
   phoenix.position.set(0, 1.03, 0.05);
-  var parts = { dough: null, body: null, deco: null, eyes: null, tails: [], head: null };
+  var parts = { dough: null, body: null, deco: null, eyes: null, tails: [], head: null, finalModel: null, finalScale: 1, goldTray: null, goldScale: 1, bodyCustom: false };
 
   function buildPhoenix() {
     // 白面团（起始）
@@ -360,7 +360,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     scene.add(handL); scene.add(handR);
   }
 
-  // ——— 可选 GLB 模型加载 ———
+  // ——— 可选 GLB 模型加载（按需加载，缺文件自动回退程序化几何体） ———
   var MODEL_FILES = {
     grandma: 'models/vr/grandma.glb',
     dough: 'models/vr/dough.glb',
@@ -371,13 +371,116 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     phoenix_final: 'models/vr/phoenix_final.glb'
   };
   var loader = new GLTFLoader();
-  function loadOptional(key, onLoad) {
+  var loadState = {};        // key -> 'loading' | 'loaded' | 'none'
+  var pendingCb = {};        // key -> [fn]
+  var _box = new THREE.Box3(), _size = new THREE.Vector3();
+
+  // 按包围盒把模型缩放到目标高度，底面对齐到局部 y=0 —— 模型尺寸随便变都不会错位
+  function fitModel(obj, targetH) {
+    obj.updateMatrixWorld(true);
+    _box.setFromObject(obj); _box.getSize(_size);
+    obj.scale.setScalar(targetH / Math.max(_size.y, 1e-4));
+    obj.updateMatrixWorld(true);
+    _box.setFromObject(obj);
+    obj.position.y -= _box.min.y;
+    obj.traverse(function (n) {
+      if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }
+    });
+    return obj;
+  }
+
+  // 隐藏组内的程序化网格（组本身保持可见，好让子模型跟着原有动画走）
+  function hideProcedural(group) {
+    group.traverse(function (n) { if (n.isMesh) n.visible = false; });
+  }
+
+  // 每个模型接进对应的场景部件
+  var MODEL_APPLY = {
+    grandma: function (obj) {
+      fitModel(obj, 1.95);
+      // 站到桌子左后方，避免和桌上作品在视线上重叠
+      obj.position.set(-0.72, obj.position.y, -2.45);
+      obj.rotation.y = 0.3;
+      scene.remove(grandmaGroup);
+      scene.add(obj);
+    },
+    dough: function (obj) {
+      fitModel(obj, 0.46);
+      obj.position.y -= 0.23;
+      parts.dough.add(obj);
+      parts.dough.material.visible = false;   // 只藏几何体，保留子节点渲染
+    },
+    phoenix_body: function (obj) {
+      fitModel(obj, 0.68);
+      hideProcedural(parts.body);
+      parts.body.add(obj);
+      // 该模型自带眼睛、金冠与金色羽饰，程序化的黑豆和金片不再叠加
+      parts.bodyCustom = true;
+      parts.deco.visible = false;
+      parts.eyes.visible = false;
+    },
+    // yellow_deco 实际是一盘散开的金饰零件，不是贴片：放在案板右侧当“配件盘”，
+    // 第 4 步用掉后收起，凤身上的金饰仍由程序化贴片呈现
+    yellow_deco: function (obj) {
+      fitModel(obj, 0.24);
+      var tray = new THREE.Group();          // 包一层，缩放时底面不会漂移
+      tray.add(obj);
+      tray.position.set(0.42, 1.03, 0.24);
+      tray.rotation.y = -0.5;
+      tray.visible = false;
+      parts.goldTray = tray;
+      parts.goldScale = 1;
+      scene.add(tray);
+    },
+    flower_tail: function (obj) {
+      fitModel(obj, 0.62);
+      parts.tails.forEach(function (tail, i) {
+        hideProcedural(tail);
+        var c = obj.clone(true);
+        c.position.set((i - 1) * 0.1, 0.1, -0.42);    // 扇形错开，避免三片完全重叠
+        c.rotation.x = -0.6;                           // 向后上方展开，而不是竖在背上
+        tail.add(c);
+      });
+    },
+    phoenix_final: function (obj) {
+      fitModel(obj, 0.72);
+      var box = new THREE.Group();           // 包一层，缩放以底面为基准，避免悬空
+      box.add(obj);
+      box.visible = false;                   // 第 8 步「靠」的后半程才现身
+      parts.finalModel = box;
+      parts.finalScale = 1;
+      phoenix.add(box);
+    }
+  };
+
+  function ensureModel(key, cb) {
+    var st = loadState[key];
+    if (st === 'loaded') { if (cb) cb(); return; }
+    if (st === 'none') return;
+    if (st === 'loading') { if (cb) (pendingCb[key] = pendingCb[key] || []).push(cb); return; }
+    if (!MODEL_FILES[key]) { loadState[key] = 'none'; return; }
+    loadState[key] = 'loading';
     var url = siteBase() + MODEL_FILES[key];
     fetch(url, { method: 'HEAD' }).then(function (res) {
-      if (!res.ok) return;
-      loader.load(url, function (gltf) { onLoad(gltf.scene); }, undefined, function () {});
-    }).catch(function () {});
+      if (!res.ok) { loadState[key] = 'none'; return; }
+      loader.load(url, function (gltf) {
+        loadState[key] = 'loaded';
+        try { MODEL_APPLY[key] && MODEL_APPLY[key](gltf.scene); } catch (e) { loadState[key] = 'none'; }
+        (pendingCb[key] || []).forEach(function (fn) { fn(); });
+        pendingCb[key] = [];
+        if (cb) cb();
+      }, undefined, function () { loadState[key] = 'none'; });
+    }).catch(function () { loadState[key] = 'none'; });
   }
+
+  // 走到第几步再拉对应模型，首屏不用一次下完所有 GLB
+  var STEP_MODELS = {
+    0: ['dough'],
+    1: ['phoenix_body'],     // 每一步提前一步预取，避免轮到时模型还没下完
+    2: ['yellow_deco'],
+    4: ['flower_tail'],
+    5: ['phoenix_final']
+  };
 
   // ——— 游戏状态 ———
   var state = {
@@ -411,11 +514,19 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     var arrows = { up: '↕', down: '↕', side: '↔', circle: '⟳' };
     handHint.innerHTML = (s.dir === 'circle' ? '按住画圈拖动' : '按住鼠标左键，按提示方向拖动') +
       ' <span class="hand-arrow">' + arrows[s.dir] + '</span>';
+    // 走到该步时再拉模型，避免首屏一次下完所有 GLB
+    (STEP_MODELS[state.step] || []).forEach(function (k) { ensureModel(k); });
   }
 
   function applyStepVisuals() {
     var step = state.step;
     var p = Math.min(1, state.progress / STEPS[step].need);
+    // 金饰盘只在「按」这一步摆在案板上，随后收走
+    if (parts.goldTray) {
+      var showGold = step === 3;
+      parts.goldTray.visible = showGold;
+      if (showGold) parts.goldTray.scale.setScalar(parts.goldScale * (1 - p * 0.3));
+    }
     if (step === 0) {
       // 掤：面团上浮
       parts.dough.position.y = p * 0.12;
@@ -431,13 +542,17 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
       parts.body.scale.setScalar(sc);
       parts.body.rotation.y = (1 - p) * 0.6;
     } else if (step === 3) {
-      // 按：金黄装饰
-      parts.deco.visible = true;
-      parts.deco.scale.setScalar(0.001 + p * 0.999);
+      // 按：金黄装饰（模型自带金色羽饰时不再叠加程序化金片）
+      if (!parts.bodyCustom) {
+        parts.deco.visible = true;
+        parts.deco.scale.setScalar(0.001 + p * 0.999);
+      }
     } else if (step === 4) {
-      // 采：黑豆眼睛
-      parts.eyes.visible = true;
-      parts.eyes.scale.setScalar(0.001 + p * 0.999);
+      // 采：黑豆眼睛（模型自带眼睛时跳过）
+      if (!parts.bodyCustom) {
+        parts.eyes.visible = true;
+        parts.eyes.scale.setScalar(0.001 + p * 0.999);
+      }
     } else if (step === 5) {
       // 挒：三尾依次出现
       parts.tails.forEach(function (tail, i) {
@@ -451,9 +566,23 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
         tail.rotation.y = (i - 1) * (0.5 - p * 0.28);
       });
     } else if (step === 7) {
-      // 靠：整体成型 + 轻微旋转
+      // 靠：整体成型 + 轻微旋转；后半程换成完整凤凰模型
       phoenix.rotation.y = p * Math.PI * 0.35;
-      phoenix.position.y = 1.03 + Math.sin(p * Math.PI) * 0.12;
+      // 换成完整模型后落回案板，避免悬空
+      var lift = Math.sin(p * Math.PI) * 0.12 * Math.max(0, 1 - p * 2);
+      phoenix.position.y = 1.03 + lift;
+      if (parts.finalModel) {
+        var useModel = p >= 0.5;
+        parts.finalModel.visible = useModel;
+        parts.body.visible = !useModel;
+        parts.deco.visible = !useModel && !parts.bodyCustom;
+        parts.eyes.visible = !useModel && !parts.bodyCustom;
+        parts.tails.forEach(function (t) { t.visible = !useModel; });
+        if (useModel) {
+          var k = 0.72 + 0.28 * (p - 0.5) / 0.5;
+          parts.finalModel.scale.setScalar(parts.finalScale * k);
+        }
+      }
     }
   }
 
@@ -583,6 +712,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     parts.body.visible = false; parts.body.scale.setScalar(1); parts.body.rotation.y = 0;
     parts.deco.visible = false; parts.eyes.visible = false;
     parts.tails.forEach(function (t) { t.visible = false; t.scale.setScalar(1); t.rotation.y = 0; });
+    if (parts.finalModel) { parts.finalModel.visible = false; parts.finalModel.scale.setScalar(parts.finalScale); }
     phoenix.rotation.y = 0; phoenix.position.y = 1.03;
     taskCard.classList.remove('hidden'); handHint.classList.remove('hidden');
     updateUI(); showCoach(STEPS[0].coach);
@@ -619,28 +749,18 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
   resize();
   animate();
 
-  // 若有 Miora 模型，替换对应程序化几何体（占位替换逻辑）
-  loadOptional('grandma', function (obj) {
-    obj.position.set(0, 0, -2.55); obj.scale.setScalar(1.4);
-    scene.remove(grandmaGroup); scene.add(obj);
-  });
-  loadOptional('phoenix_final', function (obj) {
-    obj.scale.setScalar(1.7); obj.position.set(0, 0, 0);
-    phoenix.visible = true;
-    // 完整模型到位时，隐藏程序化部件，展示模型
-    phoenix.userData.customModel = obj;
-    phoenix.add(obj);
-    [parts.dough, parts.body, parts.deco, parts.eyes].forEach(function (p) { if (p) p.visible = false; });
-    parts.tails.forEach(function (t) { t.visible = false; });
-  });
+  // 奶奶和起始面团开局就要，先拉这两个；其余按步骤懒加载（见 STEP_MODELS）
+  ensureModel('grandma');
+  ensureModel('dough');
 
-  // 通知：模型目录为空时用程序化几何体
+  // 通知：模型目录为空（或取不到）时用程序化几何体
+  function showFallbackNotice() {
+    var n = $('fallback-notice');
+    n.textContent = '当前使用程序化 3D 模型演示。将 Miora 生成的 GLB 按 models/vr/README.md 命名放入目录，即可自动替换为您的模型。';
+    n.classList.remove('hidden');
+    setTimeout(function () { n.classList.add('hidden'); }, 9000);
+  }
   fetch(siteBase() + MODEL_FILES.phoenix_final, { method: 'HEAD' }).then(function (r) {
-    if (!r.ok) {
-      var n = $('fallback-notice');
-      n.textContent = '当前使用程序化 3D 模型演示。将 Miora 生成的 GLB 按 models/vr/README.md 命名放入目录，即可自动替换为您的模型。';
-      n.classList.remove('hidden');
-      setTimeout(function () { n.classList.add('hidden'); }, 9000);
-    }
-  }).catch(function () {});
+    if (!r.ok) showFallbackNotice();
+  }).catch(showFallbackNotice);
 })();
