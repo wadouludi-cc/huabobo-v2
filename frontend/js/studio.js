@@ -159,6 +159,24 @@ const INSTANCE_SCALE_MAX = 3;
 const INSTANCE_LIFT_MAX = 1.2;
 /** 单击绕轴旋转的固定步进（度） */
 const MODEL_ROTATE_STEP_DEG = 15;
+/** 旋转补间时长（毫秒）：让方向看得出来，而不是瞬间跳位 */
+const MODEL_ROTATE_TWEEN_MS = 220;
+/** 旋转方向提示环：停留与淡出时长（毫秒） */
+const ROTATE_HINT_HOLD_MS = 640;
+const ROTATE_HINT_FADE_MS = 360;
+/**
+ * 三根旋转轴的配色与方向说法（统一按世界轴、右手定则正方向即 +15°）
+ * x：顶部朝镜头倒 → 前倾；y：正面转向右侧 → 右转；z：右侧抬起 → 左倾
+ */
+const MODEL_AXES = {
+  x: { vec: new THREE.Vector3(1, 0, 0), color: 0xc9414f, word: '前倾' },
+  y: { vec: new THREE.Vector3(0, 1, 0), color: 0x3f8f5f, word: '右转' },
+  z: { vec: new THREE.Vector3(0, 0, 1), color: 0x2f6fbf, word: '左倾' }
+};
+/** 旋转补间队列：{ wrapper, from, to, start, dur } */
+const rotationTweens = [];
+/** 当前显示的方向提示环 */
+let rotationHint = null;
 let arMode = false;
 let savedControlsState = null;
 let savedHintCardHtml = null;
@@ -249,6 +267,8 @@ function setActiveInstance(instanceId) {
 
 function clearAllLoadedModels() {
   if (!doughGroup) return;
+  clearRotationHint();
+  rotationTweens.length = 0;
   while (loadedModels.length) {
     const rec = loadedModels.pop();
     doughGroup.remove(rec.wrapper);
@@ -322,37 +342,172 @@ function applyModelScale(factor) {
 }
 
 function applyModelRotation(axis) {
+  const meta = MODEL_AXES[axis];
+  if (!meta) return;
   const active = getActiveLoadedModel();
   if (!active) {
     setStatus('请先选中一个模型再旋转');
     return;
   }
-  const rad = THREE.MathUtils.degToRad(MODEL_ROTATE_STEP_DEG);
   const w = active.wrapper;
-  // 累加实例自身 Euler，不改相机 / OrbitControls
-  if (axis === 'x') w.rotation.x += rad;
-  else if (axis === 'y') w.rotation.y += rad;
-  else if (axis === 'z') w.rotation.z += rad;
-  const deg = {
-    x: Math.round(THREE.MathUtils.radToDeg(w.rotation.x)),
-    y: Math.round(THREE.MathUtils.radToDeg(w.rotation.y)),
-    z: Math.round(THREE.MathUtils.radToDeg(w.rotation.z))
-  };
+  const rad = THREE.MathUtils.degToRad(MODEL_ROTATE_STEP_DEG);
+  // 绕“世界轴”转：四元数左乘，之前转过哪根轴都不影响这次的旋转方向
+  const q = new THREE.Quaternion().setFromAxisAngle(meta.vec, rad);
+  const from = w.quaternion.clone();
+  const to = q.multiply(from);
+  for (let i = rotationTweens.length - 1; i >= 0; i--) {
+    if (rotationTweens[i].wrapper === w) rotationTweens.splice(i, 1);
+  }
+  rotationTweens.push({
+    wrapper: w,
+    from,
+    to,
+    start: performance.now(),
+    dur: MODEL_ROTATE_TWEEN_MS
+  });
+  if (!active.axisDeg) active.axisDeg = { x: 0, y: 0, z: 0 };
+  active.axisDeg[axis] = (active.axisDeg[axis] || 0) + MODEL_ROTATE_STEP_DEG;
+  showRotationHint(active, axis);
+  const label = String(axis).toUpperCase();
   setStatus(
-    '已绕' +
-      String(axis).toUpperCase() +
-      '轴旋转 ' +
-      MODEL_ROTATE_STEP_DEG +
-      '°：' +
-      active.name +
-      '（X' +
-      deg.x +
-      '° Y' +
-      deg.y +
-      '° Z' +
-      deg.z +
-      '°）'
+    '已绕 ' + label + ' 轴' + meta.word + ' ' + MODEL_ROTATE_STEP_DEG + '°' +
+      '（' + label + ' 轴累计 ' + active.axisDeg[axis] + '°）：' + active.name
   );
+}
+
+/** 每帧推进旋转补间，让 15° 的步进看得见方向 */
+function updateRotationTweens(now) {
+  for (let i = rotationTweens.length - 1; i >= 0; i--) {
+    const t = rotationTweens[i];
+    const k = Math.min(1, (now - t.start) / t.dur);
+    const e = 1 - Math.pow(1 - k, 3);
+    t.wrapper.quaternion.slerpQuaternions(t.from, t.to, e);
+    if (k >= 1) rotationTweens.splice(i, 1);
+  }
+}
+
+/**
+ * 旋转方向提示环：在模型中心画出“旋转平面 + 轴心线 + 箭头”，
+ * 箭头随步进方向转动，让用户看清是绕哪根轴、往哪边转
+ */
+function showRotationHint(rec, axis) {
+  if (!rec || !rec.wrapper || !scene) return;
+  const meta = MODEL_AXES[axis];
+  if (!meta) return;
+  const box = new THREE.Box3().setFromObject(rec.wrapper);
+  if (box.isEmpty()) return;
+  const center = box.getCenter(new THREE.Vector3());
+  const size = box.getSize(new THREE.Vector3());
+  // 旋转平面内的外接半径：让弧线刚好绕过模型轮廓
+  let span = Math.sqrt(size.x * size.x + size.y * size.y);
+  if (axis === 'x') span = Math.sqrt(size.y * size.y + size.z * size.z);
+  else if (axis === 'y') span = Math.sqrt(size.x * size.x + size.z * size.z);
+  const radius = Math.max(0.26, span * 0.5 + 0.06);
+
+  clearRotationHint();
+
+  const outer = new THREE.Group();
+  outer.position.copy(center);
+  // Y 轴的转向环抬到模型上半身，避免趴在案板上被挡住
+  if (axis === 'y') outer.position.y = box.min.y + size.y * 0.72;
+  // 提示环建在局部 XY 平面（轴 = 局部 +Z），再转到对应的世界轴上
+  if (axis === 'x') outer.rotation.y = Math.PI / 2;
+  else if (axis === 'y') outer.rotation.x = -Math.PI / 2;
+
+  const arcMat = new THREE.MeshBasicMaterial({
+    color: meta.color,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false // 提示环永远画在模型前面，不会被挡住
+  });
+  const axisMat = new THREE.MeshBasicMaterial({
+    color: meta.color,
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    depthTest: false
+  });
+  const entries = [
+    { mat: arcMat, base: 0.95 },
+    { mat: axisMat, base: 0.45 }
+  ];
+
+  // 弧形箭头：只画一段圆弧 + 箭头，比整圈更容易看出“往哪边转”
+  const arcRad = THREE.MathUtils.degToRad(150);
+  const arcGroup = new THREE.Group();
+  arcGroup.add(
+    new THREE.Mesh(
+      new THREE.TorusGeometry(radius, Math.max(0.008, radius * 0.014), 8, 96, arcRad),
+      arcMat
+    )
+  );
+  const cone = new THREE.Mesh(
+    new THREE.ConeGeometry(radius * 0.075, radius * 0.17, 16),
+    arcMat
+  );
+  // 箭头摆在弧线末端，圆锥默认朝 +Y，绕 Z 转到位后正好是切向
+  cone.position.set(Math.cos(arcRad) * radius, Math.sin(arcRad) * radius, 0);
+  cone.rotation.z = arcRad;
+  arcGroup.add(cone);
+  // 弧线中心朝向：X/Z 轴绕在模型上方（像彩虹），Y 轴套在模型腰部靠镜头一侧
+  const arcCenterAngle = axis === 'y' ? -Math.PI * 0.7 : Math.PI / 2;
+  arcGroup.rotation.z = arcCenterAngle - arcRad / 2;
+
+  const spin = new THREE.Group();
+  spin.add(arcGroup);
+  outer.add(spin);
+
+  // 轴心线：沿局部 Z（也就是当前旋转轴）穿过模型，说明绕的是哪根轴
+  const axisLine = new THREE.Mesh(
+    new THREE.CylinderGeometry(
+      Math.max(0.0035, radius * 0.007),
+      Math.max(0.0035, radius * 0.007),
+      radius * 1.9,
+      8
+    ),
+    axisMat
+  );
+  axisLine.rotation.x = Math.PI / 2;
+  outer.add(axisLine);
+  // 透明 + 关深度测试：保证提示环画在模型和案板前面
+  outer.traverse(function (obj) {
+    if (obj.isMesh) obj.renderOrder = 999;
+  });
+
+  scene.add(outer);
+  rotationHint = {
+    group: outer,
+    spin,
+    entries,
+    start: performance.now(),
+    sweep: THREE.MathUtils.degToRad(MODEL_ROTATE_STEP_DEG)
+  };
+}
+
+function updateRotationHint(now) {
+  if (!rotationHint) return;
+  const h = rotationHint;
+  const dt = now - h.start;
+  const k = Math.min(1, dt / MODEL_ROTATE_TWEEN_MS);
+  h.spin.rotation.z = h.sweep * (1 - Math.pow(1 - k, 3));
+  let op = 1;
+  if (dt < 120) op = dt / 120;
+  else if (dt > ROTATE_HINT_HOLD_MS) {
+    op = Math.max(0, 1 - (dt - ROTATE_HINT_HOLD_MS) / ROTATE_HINT_FADE_MS);
+  }
+  h.entries.forEach(function (e) {
+    e.mat.opacity = e.base * op;
+  });
+  if (dt > ROTATE_HINT_HOLD_MS + ROTATE_HINT_FADE_MS) clearRotationHint();
+}
+
+function clearRotationHint() {
+  if (!rotationHint) return;
+  const g = rotationHint.group;
+  if (g.parent) g.parent.remove(g);
+  disposeObject3D(g);
+  rotationHint = null;
 }
 
 function clampInstanceTransform(wrapper) {
@@ -742,6 +897,10 @@ function removeLoadedModel(instanceId) {
   doughGroup.remove(rec.wrapper);
   disposeObject3D(rec.wrapper);
   loadedModels.splice(index, 1);
+  clearRotationHint();
+  for (let i = rotationTweens.length - 1; i >= 0; i--) {
+    if (!rotationTweens[i].wrapper.parent) rotationTweens.splice(i, 1);
+  }
   if (activeInstanceId === instanceId) {
     activeInstanceId = loadedModels.length
       ? loadedModels[loadedModels.length - 1].instanceId
@@ -982,8 +1141,11 @@ function resize() {
   }
 }
 
-function animate() {
+function animate(now) {
   requestAnimationFrame(animate);
+  const t = typeof now === 'number' ? now : performance.now();
+  updateRotationTweens(t);
+  updateRotationHint(t);
   controls.update();
   renderer.render(scene, camera);
 }

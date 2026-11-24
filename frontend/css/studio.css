@@ -409,6 +409,58 @@
   height: 16px;
 }
 
+/* 三根旋转轴各用一套图形 + 配色（与 3D 提示环同色），一眼能分清 X / Y / Z */
+.studio-scale-btn .studio-axis-icon {
+  flex: 0 0 auto;
+}
+
+.studio-axis-icon .axis-ring {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+}
+
+.studio-axis-icon .axis-line {
+  stroke: currentColor;
+  stroke-width: 1.3;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+
+.studio-axis-icon .axis-head,
+.studio-axis-icon .axis-dot {
+  fill: currentColor;
+  stroke: none;
+}
+
+.studio-scale-btn[data-axis='x'] .studio-axis-icon {
+  color: #c9414f;
+}
+
+.studio-scale-btn[data-axis='y'] .studio-axis-icon {
+  color: #3f8f5f;
+}
+
+.studio-scale-btn[data-axis='z'] .studio-axis-icon {
+  color: #2f6fbf;
+}
+
+.studio-axis-key {
+  font-weight: 700;
+}
+
+.studio-axis-key--x {
+  color: #c9414f;
+}
+
+.studio-axis-key--y {
+  color: #3f8f5f;
+}
+
+.studio-axis-key--z {
+  color: #2f6fbf;
+}
+
 .studio-scale-btn:hover {
   border-color: rgba(196, 30, 58, 0.4);
   color: var(--primary, #c41e3a);

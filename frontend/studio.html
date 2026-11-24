@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>面塑 DIY 工作台 — 指间塑</title>
   <link rel="stylesheet" href="css/style.css?v=20261117c">
-  <link rel="stylesheet" href="css/studio.css?v=20261120d">
+  <link rel="stylesheet" href="css/studio.css?v=20261124b">
 </head>
 <body class="studio-page">
 
@@ -58,6 +58,11 @@
         </p>
         <p class="studio-hint-card__text">空白处拖拽旋转视角 · 按住模型拖拽前后/左右平移（按住Shift上下移动）</p>
         <p class="studio-hint-card__muted">触屏双指捏合缩放 · 右下角按钮旋转 / 放大缩小</p>
+        <p class="studio-hint-card__muted">
+          旋转按轴分色：<b class="studio-axis-key studio-axis-key--x">X</b>
+          <b class="studio-axis-key studio-axis-key--y">Y</b>
+          <b class="studio-axis-key studio-axis-key--z">Z</b>，点击后案板上会亮出方向环
+        </p>
         <label class="studio-hint-card__gain">
           <span>拖动灵敏度 <b id="drag-gain-val">1.0x</b></span>
           <input type="range" id="drag-gain" min="0.5" max="2" step="0.1" value="1" aria-label="拖动灵敏度">
@@ -65,16 +70,28 @@
       </div>
 
       <div class="studio-scale-btns" role="group" aria-label="模型旋转与缩放">
-        <button type="button" id="btn-model-rotate-x" class="studio-scale-btn" title="绕X轴旋转模型">
-          <i data-lucide="rotate-3d"></i>
+        <button type="button" id="btn-model-rotate-x" class="studio-scale-btn" data-axis="x" title="绕 X 轴旋转：顶部朝镜头前倾">
+          <svg class="studio-axis-icon studio-axis-icon--x" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <line class="axis-line" x1="3" y1="12" x2="21" y2="12"></line>
+            <ellipse class="axis-ring" cx="12" cy="12" rx="4.4" ry="8.2"></ellipse>
+            <path class="axis-head" d="M13 3.4l2.7 3.2-5.1 1z"></path>
+          </svg>
           <span>绕X轴</span>
         </button>
-        <button type="button" id="btn-model-rotate-y" class="studio-scale-btn" title="绕Y轴旋转模型">
-          <i data-lucide="rotate-3d"></i>
+        <button type="button" id="btn-model-rotate-y" class="studio-scale-btn" data-axis="y" title="绕 Y 轴旋转：原地向右转圈">
+          <svg class="studio-axis-icon studio-axis-icon--y" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <line class="axis-line" x1="12" y1="3" x2="12" y2="21"></line>
+            <ellipse class="axis-ring" cx="12" cy="12" rx="8.2" ry="4.4"></ellipse>
+            <path class="axis-head" d="M20.6 13l-3.2 2.7-1-5.1z"></path>
+          </svg>
           <span>绕Y轴</span>
         </button>
-        <button type="button" id="btn-model-rotate-z" class="studio-scale-btn" title="绕Z轴旋转模型">
-          <i data-lucide="rotate-3d"></i>
+        <button type="button" id="btn-model-rotate-z" class="studio-scale-btn" data-axis="z" title="绕 Z 轴旋转：整体向左倾倒（侧面翻滚）">
+          <svg class="studio-axis-icon studio-axis-icon--z" viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <circle class="axis-ring" cx="12" cy="12" r="8.2"></circle>
+            <circle class="axis-dot" cx="12" cy="12" r="1.9"></circle>
+            <path class="axis-head" d="M13 3.4l2.7 3.2-5.1 1z"></path>
+          </svg>
           <span>绕Z轴</span>
         </button>
         <span class="studio-scale-btns__split" aria-hidden="true"></span>
@@ -360,7 +377,7 @@
       function loadStudio() {
         var s = document.createElement('script');
         s.type = 'module';
-        s.src = 'js/studio.js?v=20261124a';
+        s.src = 'js/studio.js?v=20261124b';
         document.body.appendChild(s);
       }
       loadStudio();
