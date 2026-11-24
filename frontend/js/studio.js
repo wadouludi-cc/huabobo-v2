@@ -207,14 +207,26 @@ function createInstanceId() {
   return 'inst_' + instanceCounter;
 }
 
+/**
+ * 单件模型的初始落位锚点：案板右前方（+X 朝画面右、+Z 朝镜头/画面下）
+ * 放正中会挡住案板、还会压住左侧操作提示，所以首个模型直接落在右前方
+ */
+const INSTANCE_BASE_X = 1;
+const INSTANCE_BASE_Z = 0.6;
+/** 多件模型从锚点往案板内侧散开的半径（每多一环加一圈） */
+const INSTANCE_SPREAD_RADIUS = 0.34;
+
 function getInstanceSpreadOffset(index) {
-  const ring = Math.floor(index / 6) + 1;
-  const slot = index % 6;
-  const angle = (slot / 6) * Math.PI * 2;
-  const radius = 0.28 * ring;
+  const i = Math.max(0, index | 0);
+  if (!i) return { x: INSTANCE_BASE_X, z: INSTANCE_BASE_Z };
+  const ring = Math.floor((i - 1) / 6) + 1;
+  const slot = (i - 1) % 6;
+  // 从锚点朝左后方（案板内侧）扇形排开，避免继续往右挤到工具栏与案板边缘
+  const angle = Math.PI + (slot / 6) * Math.PI * 2;
+  const radius = INSTANCE_SPREAD_RADIUS * ring;
   return {
-    x: Math.cos(angle) * radius,
-    z: Math.sin(angle) * radius
+    x: THREE.MathUtils.clamp(INSTANCE_BASE_X + Math.cos(angle) * radius, -1.2, 1.2),
+    z: THREE.MathUtils.clamp(INSTANCE_BASE_Z + Math.sin(angle) * radius, -0.85, 0.9)
   };
 }
 
@@ -4207,9 +4219,9 @@ async function boot() {
   if (editId) {
     await loadWorkForEdit(editId);
   } else if (isCoarsePointer()) {
-    setStatus('点「模型库」挑一张卡片，把花饽饽放到中间案板');
+    setStatus('点「模型库」挑一张卡片，把花饽饽放到案板右前方');
   } else {
-    setStatus('从右侧选择分类，把花饽饽拖到中间案板');
+    setStatus('从右侧选择分类，把花饽饽拖到案板右前方');
   }
   setupSaveShareUI();
   refreshLucide();

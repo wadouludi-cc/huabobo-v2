@@ -192,7 +192,7 @@
         <div id="model-list" class="studio-category-list studio-scroll-area"></div>
         <p class="studio-panel-note studio-model-section__note">
           <i data-lucide="server"></i>
-          点击分类，在弹窗中把模型添加到中间案板
+          点击分类，在弹窗中把模型添加到案板（默认落在右前方）
         </p>
       </section>
       <section class="studio-panel-section studio-color-section">
@@ -222,7 +222,7 @@
       </button>
       <div class="studio-dialog__head">
         <h3 id="library-dialog-title" class="studio-dialog__title">模型列表</h3>
-        <p class="studio-dialog__desc">拖到中间案板，或点击添加到案板</p>
+        <p class="studio-dialog__desc">拖到案板任意位置，或点击直接添加</p>
       </div>
       <div class="studio-dialog__body">
         <div id="library-dialog-list" class="studio-model-list studio-model-list--dialog studio-scroll-area"></div>
@@ -360,7 +360,7 @@
       function loadStudio() {
         var s = document.createElement('script');
         s.type = 'module';
-        s.src = 'js/studio.js?v=20261121a';
+        s.src = 'js/studio.js?v=20261124a';
         document.body.appendChild(s);
       }
       loadStudio();
