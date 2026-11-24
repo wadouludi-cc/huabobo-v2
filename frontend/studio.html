@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>面塑 DIY 工作台 — 指间塑</title>
   <link rel="stylesheet" href="css/style.css?v=20261117c">
-  <link rel="stylesheet" href="css/studio.css?v=20261124b">
+  <link rel="stylesheet" href="css/studio.css?v=20261124c">
 </head>
 <body class="studio-page">
 
@@ -106,6 +106,11 @@
       </div>
 
       <p id="studio-board-label" class="studio-board-label">仿真面食案板工作台</p>
+
+      <button type="button" id="btn-board-review" class="studio-board-review" title="点评案板上的数字版花饽饽（与左侧数字人下方按钮同功能）">
+        <i data-lucide="sparkles"></i>
+        <span>点评数字版花饽饽</span>
+      </button>
 
       <button type="button" id="btn-open-sheet" class="studio-fab" aria-controls="studio-sidebar-right" aria-expanded="false">
         <i data-lucide="boxes"></i>
@@ -377,7 +382,7 @@
       function loadStudio() {
         var s = document.createElement('script');
         s.type = 'module';
-        s.src = 'js/studio.js?v=20261124b';
+        s.src = 'js/studio.js?v=20261124c';
         document.body.appendChild(s);
       }
       loadStudio();

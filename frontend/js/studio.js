@@ -2167,6 +2167,29 @@ function setHumanActions(phase) {
   }
 }
 
+/**
+ * 案板下方的点评按钮：只在点击后 1.2s 内禁用，防止连点重复触发。
+ * 不跟随整段语音播报禁用——TTS 不可用时播报回调可能很晚才来，按钮会长时间变灰。
+ */
+let boardReviewCooling = false;
+
+function syncBoardReviewButton() {
+  const btn = document.getElementById('btn-board-review');
+  if (!btn) return;
+  btn.disabled = boardReviewCooling;
+}
+
+function triggerBoardReview() {
+  if (boardReviewCooling) return;
+  boardReviewCooling = true;
+  syncBoardReviewButton();
+  window.setTimeout(function () {
+    boardReviewCooling = false;
+    syncBoardReviewButton();
+  }, 1200);
+  reviewDigitalWork();
+}
+
 function setHumanThinking(on) {
   if (humanFigureEl) {
     if (on) {
@@ -3818,6 +3841,17 @@ function setupHumanInteraction() {
   const cancelCam = document.getElementById('btn-real-cam-cancel');
   if (startBtn) startBtn.addEventListener('click', startHumanSession);
   if (digitalBtn) digitalBtn.addEventListener('click', reviewDigitalWork);
+  // 案板下方的快捷入口：和数字人那块「点评数字版花饽饽」是同一个动作
+  const boardReviewBtn = document.getElementById('btn-board-review');
+  if (boardReviewBtn) {
+    boardReviewBtn.addEventListener('pointerdown', function (e) {
+      e.stopPropagation();
+    });
+    boardReviewBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      triggerBoardReview();
+    });
+  }
   if (realBtn) realBtn.addEventListener('click', startRealReviewCamera);
   if (continueBtn) {
     continueBtn.addEventListener('click', function () {
