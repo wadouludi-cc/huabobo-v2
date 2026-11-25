@@ -2995,6 +2995,42 @@
   var orderPreviewHandles = [];
   var orderModelMap = null;
 
+  /* 状态更新音效（叮咚）：与前端推送订单同一份音频，四个状态共用；点击时立刻播，失败时停掉 */
+  var ORDER_SOUND_SRC = 'audio/order-push.mp3';
+  var orderStatusSound = null;
+
+  function getOrderStatusSound() {
+    if (!orderStatusSound) {
+      try {
+        orderStatusSound = new Audio(ORDER_SOUND_SRC);
+        orderStatusSound.preload = 'auto';
+        orderStatusSound.volume = 0.9;
+      } catch (e) {
+        orderStatusSound = null;
+      }
+    }
+    return orderStatusSound;
+  }
+
+  function playOrderStatusSound() {
+    var a = getOrderStatusSound();
+    if (!a) return;
+    try {
+      a.currentTime = 0;
+    } catch (e) {}
+    var p = a.play();
+    /* 浏览器拒绝自动播放时静默忽略，不影响状态更新 */
+    if (p && typeof p.catch === 'function') p.catch(function () {});
+  }
+
+  function stopOrderStatusSound() {
+    if (!orderStatusSound) return;
+    try {
+      orderStatusSound.pause();
+      orderStatusSound.currentTime = 0;
+    } catch (e) {}
+  }
+
   function orderStatusLabel(status) {
     for (var i = 0; i < ORDER_STATUS.length; i++) {
       if (ORDER_STATUS[i].key === status) return ORDER_STATUS[i].label;
@@ -3464,9 +3500,13 @@
 
     body.querySelectorAll('[data-order-status]').forEach(function (btn) {
       btn.addEventListener('click', function () {
-        updateOrderStatus(o.id, btn.getAttribute('data-order-status'), btn);
+        var key = btn.getAttribute('data-order-status');
+        if (key === o.status) return;
+        updateOrderStatus(o.id, key, btn);
       });
     });
+    /* 提前加载音效，第一次点状态按钮不延迟 */
+    getOrderStatusSound();
 
     var gotoAddrBtn = body.querySelector('[data-goto-addresses]');
     if (gotoAddrBtn) {
@@ -3525,6 +3565,7 @@
 
   function updateOrderStatus(id, status, btn) {
     if (btn) btn.disabled = true;
+    playOrderStatusSound();
     return api('/api/admin/custom-orders/' + encodeURIComponent(id), {
       method: 'PATCH',
       body: { status: status }
@@ -3535,6 +3576,7 @@
         loadOrders();
       })
       .catch(function (err) {
+        stopOrderStatusSound();
         if (btn) btn.disabled = false;
         alert(err.message || '状态更新失败');
       });
