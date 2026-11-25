@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>VR互动 · 面塑凤凰 — 指间塑</title>
   <link rel="stylesheet" href="css/style.css?v=20261117c">
-  <link rel="stylesheet" href="css/vr-game.css?v=20261125a">
+  <link rel="stylesheet" href="css/vr-game.css?v=20261125b">
 </head>
 <body class="vr-game-body">
   <div id="game" class="game-root">
@@ -16,6 +16,7 @@
       <a href="vr.html" class="game-back" title="返回 VR互动">← 返回</a>
       <div class="game-title">面塑凤凰 · 八法匠心</div>
       <div class="game-topbar-actions">
+        <button type="button" id="btn-look" class="game-icon-btn" title="环视全景（也可按住右键拖动）" aria-label="环视全景" aria-pressed="false">👁</button>
         <button type="button" id="btn-sound" class="game-icon-btn" title="音效开关" aria-label="音效开关">🔊</button>
         <button type="button" id="btn-fullscreen" class="game-icon-btn" title="全屏" aria-label="全屏">⛶</button>
       </div>
@@ -56,6 +57,9 @@
 
     <!-- 交互光标提示 -->
     <div id="hand-hint" class="hand-hint hidden">按住鼠标左键，按提示方向拖动 <span class="hand-arrow">↕</span></div>
+
+    <!-- 环视提示：开启环视模式时出现 -->
+    <div id="look-hint" class="look-hint hidden">环视中 · 拖动画面看四周</div>
 
     <!-- 开场剧情：奶奶说明 → 书记创意 → 开始游戏（按钮已画在画面里，整幅画面可点） -->
     <div id="start-overlay" class="overlay story-overlay">
@@ -108,6 +112,6 @@
     }
   }
   </script>
-  <script type="module" src="js/vr-game.js?v=20261123b"></script>
+  <script type="module" src="js/vr-game.js?v=20261125b"></script>
 </body>
 </html>

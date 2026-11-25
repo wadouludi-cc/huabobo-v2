@@ -51,14 +51,42 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
   if ('outputColorSpace' in renderer) renderer.outputColorSpace = THREE.SRGBColorSpace;
 
   var scene = new THREE.Scene();
-  scene.background = new THREE.Color(0xdfe8ef);
-  scene.fog = new THREE.Fog(0xdfe8ef, 9, 22);
+  scene.background = new THREE.Color(0x2a211a); // 全景图没加载出来时的兜底色
 
   var camera = new THREE.PerspectiveCamera(50, 1, 0.1, 100);
+  camera.rotation.order = 'YXZ';
   var camBase = new THREE.Vector3(0, 1.62, 2.5);
   camera.position.copy(camBase);
-  var lookTarget = new THREE.Vector3(0, 1.02, -0.35);
-  camera.lookAt(lookTarget);
+  scene.add(camera); // 双手挂在相机上，相机要在场景里才会被渲染
+
+  // 第一人称视角：yaw 左右转、pitch 抬头低头
+  var view = { yaw: 0, pitch: -0.208 };
+  var swayX = 0, swayY = 0;
+  function applyCamera() {
+    camera.position.set(camBase.x + swayX, camBase.y + swayY, camBase.z);
+    camera.rotation.y = view.yaw;
+    camera.rotation.x = view.pitch;
+  }
+  applyCamera();
+
+  // ——— 360° 全景背景（等距柱状投影，鼠标拖动环视） ———
+  function loadPano() {
+    new THREE.TextureLoader().load(
+      siteBase() + 'images/vr-pano.jpg',
+      function (tex) {
+        tex.mapping = THREE.EquirectangularReflectionMapping;
+        if ('colorSpace' in tex) tex.colorSpace = THREE.SRGBColorSpace;
+        tex.minFilter = THREE.LinearFilter;
+        tex.magFilter = THREE.LinearFilter;
+        tex.anisotropy = renderer.capabilities.getMaxAnisotropy();
+        scene.background = tex;
+      },
+      undefined,
+      function () {
+        /* 全景图缺失时保留兜底色，不影响玩法 */
+      }
+    );
+  }
 
   // ——— 灯光：明亮、柔和的黏土质感 ———
   scene.add(new THREE.HemisphereLight(0xffffff, 0xbfcbd6, 1.15));
@@ -76,11 +104,8 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
   // ——— 材质工厂 ———
   var MAT = {
-    floor: new THREE.MeshStandardMaterial({ color: 0xd8dde3, roughness: 0.95 }),
-    wall: new THREE.MeshStandardMaterial({ color: 0xe9edf1, roughness: 1 }),
-    wallTrim: new THREE.MeshStandardMaterial({ color: 0xc4ced8, roughness: 0.9 }),
-    wood: new THREE.MeshStandardMaterial({ color: 0xc98b3f, roughness: 0.72 }),
-    woodDark: new THREE.MeshStandardMaterial({ color: 0xa86e2e, roughness: 0.8 }),
+    wood: new THREE.MeshStandardMaterial({ color: 0x8a5d33, roughness: 0.75 }),
+    woodDark: new THREE.MeshStandardMaterial({ color: 0x6a4526, roughness: 0.82 }),
     dough: new THREE.MeshStandardMaterial({ color: 0xf6f1e8, roughness: 0.82, metalness: 0 }),
     phoenix: new THREE.MeshStandardMaterial({ color: 0x6e2b34, roughness: 0.7 }),
     phoenixDark: new THREE.MeshStandardMaterial({ color: 0x542029, roughness: 0.75 }),
@@ -102,68 +127,45 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     return m;
   }
 
-  // ——— 作坊房间 ———
-  function buildRoom() {
-    var room = new THREE.Group();
-
-    var floor = mesh(new THREE.PlaneGeometry(40, 40), MAT.floor, false, true);
-    floor.rotation.x = -Math.PI / 2;
-    floor.position.y = 0;
-    room.add(floor);
-
-    var backWall = mesh(new THREE.PlaneGeometry(20, 7), MAT.wall, false, true);
-    backWall.position.set(0, 3.5, -5.2);
-    room.add(backWall);
-    var leftWall = mesh(new THREE.PlaneGeometry(14, 7), MAT.wall, false, true);
-    leftWall.rotation.y = Math.PI / 2;
-    leftWall.position.set(-5.5, 3.5, -1);
-    room.add(leftWall);
-
-    // 墙裙
-    var skirt = mesh(new THREE.BoxGeometry(20, 0.9, 0.08), MAT.wallTrim, false, true);
-    skirt.position.set(0, 0.45, -5.16);
-    room.add(skirt);
-
-    // 窗户（明亮感）
-    var winFrame = mesh(new THREE.BoxGeometry(3.6, 2.4, 0.12), MAT.woodDark, false, false);
-    winFrame.position.set(-2.8, 3.1, -5.1);
-    room.add(winFrame);
-    var glass = mesh(new THREE.PlaneGeometry(3.3, 2.1),
-      new THREE.MeshStandardMaterial({ color: 0xcfe6f5, emissive: 0x9ac4e0, emissiveIntensity: 0.35, roughness: 0.3 }), false, false);
-    glass.position.set(-2.8, 3.1, -5.02);
-    room.add(glass);
-    var mullionV = mesh(new THREE.BoxGeometry(0.08, 2.1, 0.06), MAT.woodDark, false, false);
-    mullionV.position.set(-2.8, 3.1, -4.98); room.add(mullionV);
-    var mullionH = mesh(new THREE.BoxGeometry(3.3, 0.08, 0.06), MAT.woodDark, false, false);
-    mullionH.position.set(-2.8, 3.1, -4.98); room.add(mullionH);
-
-    // 墙上教学挂画
-    var poster = mesh(new THREE.BoxGeometry(2.0, 1.3, 0.05),
-      new THREE.MeshStandardMaterial({ color: 0xf3e4c9, roughness: 0.9 }), false, false);
-    poster.position.set(2.6, 3.0, -5.1);
-    room.add(poster);
-    for (var i = 0; i < 3; i++) {
-      var mark = mesh(new THREE.BoxGeometry(1.3 - i * 0.25, 0.06, 0.02), MAT.phoenix, false, false);
-      mark.position.set(2.6, 3.35 - i * 0.3, -5.06);
-      room.add(mark);
+  // ——— 主木桌（程序化木纹，和全景图的暖木色对齐） ———
+  function makeWoodTexture(rx, ry) {
+    var c = document.createElement('canvas');
+    c.width = 256; c.height = 256;
+    var x = c.getContext('2d');
+    var g = x.createLinearGradient(0, 0, 0, 256);
+    g.addColorStop(0, '#a1723f');
+    g.addColorStop(0.55, '#8f6134');
+    g.addColorStop(1, '#7c522a');
+    x.fillStyle = g;
+    x.fillRect(0, 0, 256, 256);
+    // 木纹丝
+    for (var i = 0; i < 130; i++) {
+      var y0 = Math.random() * 256;
+      var alpha = 0.04 + Math.random() * 0.07;
+      x.strokeStyle = 'rgba(58, 36, 18, ' + alpha.toFixed(3) + ')';
+      x.lineWidth = Math.random() < 0.72 ? 1 : 2;
+      x.beginPath();
+      x.moveTo(-4, y0);
+      for (var px = 0; px <= 260; px += 26) {
+        x.lineTo(px, y0 + Math.sin(px * 0.045 + i * 1.7) * 2.2);
+      }
+      x.stroke();
     }
-
-    // 靠墙工具桌（氛围）
-    var sideDesk = mesh(new THREE.BoxGeometry(2.6, 0.12, 0.8), MAT.woodDark, true, true);
-    sideDesk.position.set(3.6, 0.9, -3.6);
-    room.add(sideDesk);
-    [[2.4, -3.35], [4.8, -3.35]].forEach(function (p) {
-      var leg = mesh(new THREE.BoxGeometry(0.1, 0.9, 0.1), MAT.woodDark, true, true);
-      leg.position.set(p[0], 0.45, p[1]); room.add(leg);
-    });
-
-    scene.add(room);
+    // 板缝
+    x.fillStyle = 'rgba(46, 28, 14, 0.5)';
+    for (var p = 1; p < 4; p++) x.fillRect(0, (256 / 4) * p, 256, 2);
+    var t = new THREE.CanvasTexture(c);
+    t.wrapS = THREE.RepeatWrapping;
+    t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(rx || 1, ry || 1);
+    if ('colorSpace' in t) t.colorSpace = THREE.SRGBColorSpace;
+    return t;
   }
 
-  // ——— 主木桌 ———
   function buildTable() {
     var table = new THREE.Group();
-    var top = mesh(new THREE.BoxGeometry(2.7, 0.14, 1.7), MAT.wood, true, true);
+    var topMat = new THREE.MeshStandardMaterial({ map: makeWoodTexture(2, 1.3), roughness: 0.78 });
+    var top = mesh(new THREE.BoxGeometry(2.7, 0.14, 1.7), topMat, true, true);
     top.position.set(0, 0.92, 0);
     table.add(top);
     // 桌面边缘描边
@@ -177,7 +179,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     });
     // 案板
     var board = mesh(new THREE.BoxGeometry(1.5, 0.04, 1.0),
-      new THREE.MeshStandardMaterial({ color: 0xe0c497, roughness: 0.9 }), true, true);
+      new THREE.MeshStandardMaterial({ color: 0xd8b98c, roughness: 0.9 }), true, true);
     board.position.set(0, 1.01, 0);
     table.add(board);
     scene.add(table);
@@ -354,10 +356,11 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
       return g;
     }
     handL = makeHand(-1); handR = makeHand(1);
-    handL.position.set(-0.55, 1.02, 1.35);
-    handR.position.set(0.55, 1.02, 1.35);
+    // 挂在相机下：环视时双手仍然跟着视线，不会飘出画面
+    handL.position.set(-0.55, -0.6, -1.15);
+    handR.position.set(0.55, -0.6, -1.15);
     handL.rotation.set(-0.3, -0.25, 0); handR.rotation.set(-0.3, 0.25, 0);
-    scene.add(handL); scene.add(handR);
+    camera.add(handL); camera.add(handR);
   }
 
   // ——— 可选 GLB 模型加载（按需加载，缺文件自动回退程序化几何体） ———
@@ -389,6 +392,21 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     return obj;
   }
 
+  // 按最长边缩放：扁平造型（如面团）按高度归一会横向爆开
+  function fitModelByMax(obj, targetMax) {
+    obj.updateMatrixWorld(true);
+    _box.setFromObject(obj); _box.getSize(_size);
+    var m = Math.max(_size.x, _size.y, _size.z, 1e-4);
+    obj.scale.setScalar(targetMax / m);
+    obj.updateMatrixWorld(true);
+    _box.setFromObject(obj);
+    obj.position.y -= _box.min.y;
+    obj.traverse(function (n) {
+      if (n.isMesh) { n.castShadow = true; n.receiveShadow = true; }
+    });
+    return obj;
+  }
+
   // 隐藏组内的程序化网格（组本身保持可见，好让子模型跟着原有动画走）
   function hideProcedural(group) {
     group.traverse(function (n) { if (n.isMesh) n.visible = false; });
@@ -405,8 +423,17 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
       scene.add(obj);
     },
     dough: function (obj) {
-      fitModel(obj, 0.46);
-      obj.position.y -= 0.23;
+      fitModelByMax(obj, 0.82);
+      obj.position.y -= 0.05;
+      // 模型导出时把颜色写在自发光里（渲染成粉红），这里改回白面团色
+      obj.traverse(function (n) {
+        if (n.isMesh && n.material) {
+          n.material.color = new THREE.Color(0xf4ecdc);
+          n.material.emissive = new THREE.Color(0x000000);
+          n.material.roughness = 0.85;
+          n.material.needsUpdate = true;
+        }
+      });
       parts.dough.add(obj);
       parts.dough.material.visible = false;   // 只藏几何体，保留子节点渲染
     },
@@ -624,25 +651,59 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     } catch (e) {}
   }
 
-  // ——— 指针交互 ———
+  // ——— 指针交互：左键制作，右键 / 双指 / 环视模式看全景 ———
+  var pointers = {};
+  var lookDrag = { active: false, x: 0, y: 0 };
+  var lookMode = false;
+
   function pointerDown(e) {
+    pointers[e.pointerId] = true;
+    var wantLook =
+      e.button === 2 ||
+      lookMode ||
+      (e.pointerType === 'touch' && Object.keys(pointers).length >= 2);
+
+    if (wantLook) {
+      state.dragging = false;
+      canvas.classList.remove('is-pressing');
+      lookDrag.active = true;
+      lookDrag.x = e.clientX; lookDrag.y = e.clientY;
+      canvas.classList.add('is-looking');
+      if (e.cancelable) e.preventDefault();
+      return;
+    }
+
     if (!state.started || state.done) return;
     state.dragging = true;
     state.lastX = e.clientX; state.lastY = e.clientY;
     canvas.classList.add('is-pressing');
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
   }
-  function pointerUp() {
+  function pointerUp(e) {
+    if (e && e.pointerId != null) delete pointers[e.pointerId];
+    lookDrag.active = false;
+    canvas.classList.remove('is-looking');
     state.dragging = false;
     canvas.classList.remove('is-pressing');
   }
   function pointerMove(e) {
     var nx = (e.clientX / window.innerWidth) * 2 - 1;
     var ny = (e.clientY / window.innerHeight) * 2 - 1;
-    // 第一人称轻微视角摆动
-    camera.position.x = camBase.x + nx * 0.09;
-    camera.position.y = camBase.y + ny * 0.05;
-    camera.lookAt(lookTarget);
+    // 第一人称轻微视差
+    swayX = nx * 0.06;
+    swayY = ny * 0.03;
+
+    if (lookDrag.active) {
+      var lx = e.clientX - lookDrag.x, ly = e.clientY - lookDrag.y;
+      lookDrag.x = e.clientX; lookDrag.y = e.clientY;
+      view.yaw -= lx * 0.0032;
+      view.pitch -= ly * 0.0032;
+      view.pitch = Math.max(-0.85, Math.min(0.5, view.pitch));
+      applyCamera();
+      return;
+    }
+
+    applyCamera();
     if (!state.dragging || state.done) return;
 
     var dx = e.clientX - state.lastX, dy = e.clientY - state.lastY;
@@ -670,6 +731,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
   window.addEventListener('pointerup', pointerUp);
   window.addEventListener('pointercancel', pointerUp);
   window.addEventListener('pointermove', pointerMove);
+  canvas.addEventListener('contextmenu', function (e) { e.preventDefault(); });
 
   // ——— 渲染循环 ———
   function resize() {
@@ -724,6 +786,22 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
     state.sound = !state.sound;
     this.textContent = state.sound ? '🔊' : '🔇';
   });
+  // 环视开关：打开后左键拖动变成转视角（触屏单指也能转）
+  var lookBtn = $('btn-look');
+  var lookHintEl = $('look-hint');
+  if (lookBtn) {
+    lookBtn.addEventListener('click', function () {
+      lookMode = !lookMode;
+      lookBtn.classList.toggle('is-active', lookMode);
+      lookBtn.setAttribute('aria-pressed', lookMode ? 'true' : 'false');
+      canvas.classList.toggle('is-look-mode', lookMode);
+      if (lookHintEl) lookHintEl.classList.toggle('hidden', !lookMode);
+      if (lookMode) {
+        state.dragging = false;
+        canvas.classList.remove('is-pressing');
+      }
+    });
+  }
   $('btn-fullscreen').addEventListener('click', function () {
     if (!document.fullscreenElement) {
       if (document.documentElement.requestFullscreen) document.documentElement.requestFullscreen();
@@ -739,7 +817,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
   });
 
   // ——— 初始化 ———
-  buildRoom();
+  loadPano();
   buildTable();
   buildGrandma();
   buildPhoenix();
