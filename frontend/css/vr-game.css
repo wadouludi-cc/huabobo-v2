@@ -307,6 +307,127 @@
 .finish-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
 .finish-actions .btn { padding: 12px 26px; }
 
+/* ——— 开场剧情（三段图，按钮画在画面里） ——— */
+.story-overlay {
+  padding: 0;
+  background: #f7f1e6;
+  backdrop-filter: none;
+}
+.story-stage {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  background: #f7f1e6;
+}
+.story-img {
+  position: absolute;
+  inset: 0;
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  user-select: none;
+  -webkit-user-drag: none;
+}
+/* 整幅画面都是热区：图里的「下一段 / 开始游戏」就是可见的按钮 */
+.story-hit {
+  position: absolute;
+  inset: 0;
+  z-index: 2;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+.story-hit:focus-visible {
+  outline: 3px solid var(--primary);
+  outline-offset: -6px;
+}
+.story-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 4;
+  pointer-events: none;
+}
+.story-dots {
+  position: absolute;
+  left: 18px;
+  top: 16px;
+  display: flex;
+  gap: 6px;
+}
+.story-dots i {
+  width: 7px;
+  height: 7px;
+  border-radius: 99px;
+  background: rgba(94, 66, 44, 0.26);
+  transition: width 0.3s ease, background 0.3s ease;
+}
+.story-dots i.is-on {
+  width: 20px;
+  background: var(--primary);
+}
+.story-skip {
+  pointer-events: auto;
+  position: absolute;
+  right: 16px;
+  top: 12px;
+  padding: 6px 14px;
+  font-size: 0.78rem;
+  color: #7a5a3a;
+  background: rgba(255, 248, 238, 0.82);
+  border: 1px solid rgba(160, 128, 92, 0.38);
+  border-radius: 99px;
+  cursor: pointer;
+  backdrop-filter: blur(4px);
+}
+.story-skip:hover { background: #fff; }
+.story-audio-pill {
+  position: absolute;
+  left: 16px;
+  bottom: 16px;
+  z-index: 3;
+  padding: 8px 16px;
+  font-size: 0.78rem;
+  color: #fff;
+  background: rgba(32, 25, 18, 0.66);
+  border: 0;
+  border-radius: 99px;
+  cursor: pointer;
+}
+.story-audio-pill:hover { background: rgba(32, 25, 18, 0.82); }
+
+.story-rotate-hint {
+  display: none;
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  transform: translateX(-50%);
+  z-index: 6;
+  margin: 0;
+  padding: 7px 16px;
+  font-size: 0.76rem;
+  color: #7a5a3a;
+  background: rgba(255, 248, 238, 0.9);
+  border-radius: 99px;
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+/* 竖屏手机：把画面转 90° 铺满，提示用户横过来看；转成横屏后本段自动失效 */
+@media (orientation: portrait) and (max-width: 900px) {
+  .story-stage {
+    inset: auto;
+    left: 50%;
+    top: 50%;
+    width: 100vh;
+    height: 100vw;
+    transform: translate(-50%, -50%) rotate(90deg);
+  }
+  .story-rotate-hint { display: block; }
+}
+
 /* ——— 加载与提示 ——— */
 .model-loading {
   position: absolute;

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>VR互动 · 面塑凤凰 — 指间塑</title>
   <link rel="stylesheet" href="css/style.css?v=20261117c">
-  <link rel="stylesheet" href="css/vr-game.css?v=20261123a">
+  <link rel="stylesheet" href="css/vr-game.css?v=20261125a">
 </head>
 <body class="vr-game-body">
   <div id="game" class="game-root">
@@ -57,23 +57,26 @@
     <!-- 交互光标提示 -->
     <div id="hand-hint" class="hand-hint hidden">按住鼠标左键，按提示方向拖动 <span class="hand-arrow">↕</span></div>
 
-    <!-- 开始遮罩 -->
-    <div id="start-overlay" class="overlay">
-      <div class="overlay-card">
-        <div class="overlay-eyebrow">指间塑 · VR 互动体验</div>
-        <h1 class="overlay-title">面塑凤凰<br><span>八法匠心</span></h1>
-        <p class="overlay-desc">
-          第一人称走进胶东面塑作坊，面塑奶奶在你对面手把手教。
-          用「掤、捋、挤、按、采、挒、肘、靠」八法，把一团面慢慢捏成一只凤凰。
-        </p>
-        <div class="overlay-steps" aria-hidden="true">
-          <div><span>1</span> 揉面塑身</div>
-          <div><span>2</span> 贴饰点睛</div>
-          <div><span>3</span> 制尾成凤</div>
-        </div>
-        <button type="button" id="btn-start" class="btn btn-primary overlay-cta">进入作坊，开始制作 →</button>
-        <p class="overlay-tip">建议佩戴耳机 · 支持鼠标 / 触屏拖动</p>
+    <!-- 开场剧情：奶奶说明 → 书记创意 → 开始游戏（按钮已画在画面里，整幅画面可点） -->
+    <div id="start-overlay" class="overlay story-overlay">
+      <div class="story-stage" id="story-stage">
+        <img id="story-img" class="story-img" src="images/story-1.jpg" alt="花饽饽店的新故事：奶奶向书记说明店里最近的情况" draggable="false">
+
+        <!-- 前两段点「下一段」推进；第三段换成「开始游戏」，走 vr-game.js 原有启动逻辑 -->
+        <button type="button" id="btn-story-next" class="story-hit" aria-label="下一段"></button>
+        <button type="button" id="btn-start" class="story-hit hidden" aria-label="开始游戏"></button>
+
+        <button type="button" id="story-audio-pill" class="story-audio-pill hidden">🔊 点击播放语音</button>
       </div>
+
+      <div class="story-hud">
+        <div class="story-dots" id="story-dots" aria-hidden="true"><i class="is-on"></i><i></i><i></i></div>
+        <button type="button" id="btn-story-skip" class="story-skip">跳过剧情 ›</button>
+      </div>
+
+      <p class="story-rotate-hint" aria-hidden="true">↻ 横过手机，看得更清楚</p>
+
+      <audio id="story-audio" preload="auto" playsinline></audio>
     </div>
 
     <!-- 完成遮罩 -->
@@ -95,6 +98,7 @@
   </div>
 
   <script src="js/site-base.js"></script>
+  <script src="js/vr-story.js?v=20261125a" defer></script>
   <script src="vendor/es-module-shims.js"></script>
   <script type="importmap">
   {
