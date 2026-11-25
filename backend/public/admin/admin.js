@@ -3000,6 +3000,11 @@
 
   var orderPreviewHandles = [];
   var orderModelMap = null;
+  /* 订单详情「三维模型」：老模型没有缩略图时，在浏览器里逐个生成静态预览图（同一模型只生成一次） */
+  var orderThumbQueue = [];
+  var orderThumbRunning = false;
+  var orderThumbGenToken = 0;
+  var orderModelThumbCache = {};
 
   /* 状态更新音效（叮咚）：与前端推送订单同一份音频，四个状态共用；点击时立刻播，失败时停掉 */
   var ORDER_SOUND_SRC = 'audio/order-push.mp3';
@@ -3051,6 +3056,93 @@
       } catch (e) {}
     });
     orderPreviewHandles = [];
+    /* 关掉详情就作废还在排队的预览生成任务，并释放已生成的 blob 图 */
+    orderThumbGenToken += 1;
+    orderThumbQueue = [];
+    Object.keys(orderModelThumbCache).forEach(function (k) {
+      var item = orderModelThumbCache[k];
+      if (item && item.url) {
+        try {
+          URL.revokeObjectURL(item.url);
+        } catch (e) {}
+      }
+    });
+    orderModelThumbCache = {};
+  }
+
+  function fillOrderModelThumbs(modelId, url) {
+    var grid = document.getElementById('order-model-grid');
+    if (!grid) return;
+    grid.querySelectorAll('[data-thumb-for]').forEach(function (el) {
+      if (el.getAttribute('data-thumb-for') !== modelId) return;
+      if (!url) {
+        el.textContent = '预览加载失败';
+        el.removeAttribute('data-thumb-for');
+        return;
+      }
+      var img = document.createElement('img');
+      img.className = 'order-model-thumb';
+      img.src = url;
+      img.alt = '';
+      img.loading = 'lazy';
+      img.decoding = 'async';
+      el.replaceWith(img);
+    });
+  }
+
+  function enqueueOrderModelThumb(modelId, glbUrl, token) {
+    orderThumbQueue.push({ modelId: modelId, glbUrl: glbUrl, token: token });
+    pumpOrderThumbQueue();
+  }
+
+  /* 串行处理：一次只开一个离屏 WebGL，模型再多也不会把上下文/内存撑爆 */
+  function pumpOrderThumbQueue() {
+    if (orderThumbRunning) return;
+    var job = null;
+    while (orderThumbQueue.length) {
+      var next = orderThumbQueue.shift();
+      if (next.token === orderThumbGenToken) {
+        job = next;
+        break;
+      }
+    }
+    if (!job) return;
+    if (orderModelThumbCache[job.modelId]) {
+      pumpOrderThumbQueue();
+      return;
+    }
+    var mod = window.AdminModelThumb;
+    if (!mod || !mod.generateModelThumbnailFromGlb) {
+      orderModelThumbCache[job.modelId] = { error: true };
+      fillOrderModelThumbs(job.modelId, '');
+      pumpOrderThumbQueue();
+      return;
+    }
+    orderThumbRunning = true;
+    fetch(job.glbUrl)
+      .then(function (r) {
+        if (!r.ok) throw new Error('读取模型失败');
+        return r.blob();
+      })
+      .then(function (blob) {
+        var file = new File([blob], 'model.glb', { type: 'model/gltf-binary' });
+        return mod.generateModelThumbnailFromGlb(file, 320);
+      })
+      .then(function (blob) {
+        if (job.token !== orderThumbGenToken) return;
+        var url = URL.createObjectURL(blob);
+        orderModelThumbCache[job.modelId] = { url: url };
+        fillOrderModelThumbs(job.modelId, url);
+      })
+      .catch(function () {
+        if (job.token !== orderThumbGenToken) return;
+        orderModelThumbCache[job.modelId] = { error: true };
+        fillOrderModelThumbs(job.modelId, '');
+      })
+      .then(function () {
+        orderThumbRunning = false;
+        pumpOrderThumbQueue();
+      });
   }
 
   /* ===== 收货地址审核 ===== */
@@ -3501,7 +3593,9 @@
       '<span class="editor-section-hint">删除后用户「我的」页面不再显示这个订单</span>' +
       '</div>' +
       '</div></div>' +
-      '<h4>三维模型</h4>' +
+      '<h4>三维模型' +
+      (instances.length ? '<span class="order-model-count">共 ' + instances.length + ' 个</span>' : '') +
+      '</h4>' +
       '<div class="order-model-grid" id="order-model-grid"></div>';
 
     body.querySelectorAll('[data-order-status]').forEach(function (btn) {
@@ -3536,37 +3630,90 @@
       return;
     }
 
-    var maxRender = Math.min(instances.length, 6);
+    /* 全部实例都要展示：有服务端缩略图的直接贴图；
+       没有缩略图的（批量导入的老模型）按模型串行生成一张静态预览图，
+       既不限制条数，也不会同时占用多个 WebGL 上下文 */
+    var thumbToken = ++orderThumbGenToken;
+    var pending = [];
     var html = '';
-    for (var i = 0; i < maxRender; i++) {
+    for (var i = 0; i < instances.length; i++) {
       var ins = instances[i];
       var m = modelMap[ins.modelId];
       var name = (m && m.name) || ins.modelId || '模型 ' + (i + 1);
+      var thumb = m && m.thumbnail ? adminUploadUrl(m.thumbnail) : '';
+      var cached = orderModelThumbCache[ins.modelId];
+      var cell;
+      if (thumb) {
+        cell =
+          '<img class="order-model-thumb" data-thumb-model="' +
+          escapeHtml(ins.modelId) +
+          '" src="' +
+          escapeHtml(thumb) +
+          '" alt="' +
+          escapeHtml(name) +
+          '" loading="lazy" decoding="async">';
+      } else if (cached && cached.url) {
+        cell =
+          '<img class="order-model-thumb" src="' +
+          escapeHtml(cached.url) +
+          '" alt="' +
+          escapeHtml(name) +
+          '" loading="lazy" decoding="async">';
+      } else if (m && m.glbUrl && !(cached && cached.error)) {
+        cell =
+          '<div class="order-model-empty" data-thumb-for="' +
+          escapeHtml(ins.modelId) +
+          '">预览生成中…</div>';
+        if (pending.indexOf(ins.modelId) < 0) pending.push(ins.modelId);
+      } else {
+        cell = '<div class="order-model-empty">' + (m && m.glbUrl ? '预览加载失败' : '模型已删除') + '</div>';
+      }
       html +=
-        '<div class="order-model-item"><div class="order-model-canvas" data-model-canvas="' +
-        i +
-        '"></div><p class="editor-section-hint">' +
+        '<div class="order-model-item">' +
+        cell +
+        '<p class="order-model-name" title="' +
+        escapeHtml(name) +
+        '">' +
         escapeHtml(name) +
         '</p></div>';
     }
     grid.innerHTML = html;
 
-    if (!window.AdminModelThumb || !window.AdminModelThumb.createDigitalHumanPreview) return;
-    for (var j = 0; j < maxRender; j++) {
-      (function (idx) {
-        var ins = instances[idx];
-        var m = modelMap[ins.modelId];
-        if (!m || !m.glbUrl) return;
-        var el = grid.querySelector('[data-model-canvas="' + idx + '"]');
-        if (!el) return;
-        try {
-          var handle = window.AdminModelThumb.createDigitalHumanPreview(el, {
-            glbUrl: adminUploadUrl(m.glbUrl)
-          });
-          orderPreviewHandles.push(handle);
-        } catch (e) {}
-      })(j);
+    /* 缩略图缺失/被删/坏图时：能拿到 GLB 就退回浏览器生成，拿不到才显示占位 */
+    function fallbackThumb(img) {
+      var modelId = img.getAttribute('data-thumb-model');
+      var m = modelId ? modelMap[modelId] : null;
+      var cached = modelId ? orderModelThumbCache[modelId] : null;
+      if (!m || !m.glbUrl || (cached && cached.error)) {
+        var box = document.createElement('div');
+        box.className = 'order-model-empty';
+        box.textContent = '预览加载失败';
+        img.replaceWith(box);
+        return;
+      }
+      var ph = document.createElement('div');
+      ph.className = 'order-model-empty';
+      ph.setAttribute('data-thumb-for', modelId);
+      ph.textContent = '预览生成中…';
+      img.replaceWith(ph);
+      enqueueOrderModelThumb(modelId, adminUploadUrl(m.glbUrl), thumbToken);
     }
+
+    grid.querySelectorAll('img.order-model-thumb').forEach(function (img) {
+      img.addEventListener('error', function () {
+        fallbackThumb(img);
+      });
+      img.addEventListener('load', function () {
+        if (img.naturalWidth > 0 && img.naturalWidth < 8) fallbackThumb(img);
+      });
+      if (img.complete && img.naturalWidth > 0 && img.naturalWidth < 8) fallbackThumb(img);
+    });
+
+    pending.forEach(function (modelId) {
+      var m = modelMap[modelId];
+      if (!m || !m.glbUrl) return;
+      enqueueOrderModelThumb(modelId, adminUploadUrl(m.glbUrl), thumbToken);
+    });
   }
 
   function updateOrderStatus(id, status, btn) {

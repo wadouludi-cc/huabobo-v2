@@ -1162,19 +1162,50 @@ body.admin-auth .app {
   gap: 12px;
 }
 
-.order-model-canvas {
+.order-model-count {
+  margin-left: 8px;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--ink-soft);
+}
+
+.order-model-item {
+  min-width: 0;
+}
+
+.order-model-thumb,
+.order-model-empty {
   width: 100%;
   height: 170px;
   border-radius: 12px;
   border: 1px solid var(--border);
   background: var(--bg);
-  overflow: hidden;
 }
 
-.order-model-canvas canvas {
+.order-model-thumb {
   display: block;
-  width: 100% !important;
-  height: 100% !important;
+  object-fit: cover;
+}
+
+.order-model-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.78rem;
+  color: var(--ink-soft);
+  border-style: dashed;
+  text-align: center;
+  padding: 8px;
+}
+
+.order-model-name {
+  margin: 6px 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: var(--ink-soft);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 @media (max-width: 720px) {
