@@ -11,6 +11,8 @@
 - 冒烟：`cd backend && node scripts/smoke.js`（需先启动后端，健康检查 `/api/health`）。改动接口行为时要同步更新 `backend/scripts/smoke.js`，CI 的 backend / backend-pg / docker-image / deploy-test 都跑它。
 - 本地不污染 dev.db 的跑法：`DATABASE_URL=file:/tmp/hb-smoke.db PORT=3311 node src/seed.js` → 同环境变量起服务 → `SMOKE_BASE=http://127.0.0.1:3311 node scripts/smoke.js`（.env 不会覆盖已存在的环境变量）。
 - 改后台静态文件（admin.js/admin.css）时同步改 `backend/public/admin/index.html` 里的 `?v=` 版本号，否则用户浏览器用旧缓存。前端页面同理（`js/*.js?v=`）。
+- 后台登录走 CORS 白名单（只认 `PUBLIC_BASE_URL`/`FRONTEND_BASE_URL` 与 3000、8765 四个地址）。临时库测试要起在 **3000**，换 3311 之类端口会让 `/api/admin/login` 返回 500 `Not allowed by CORS`，页面卡在登录页。
+- 后台音频等静态资源放 `backend/public/admin/` 下（Express 只挂 `/admin` 指该目录，引用不到 `frontend/`），需要时从 `frontend/audio/` 复制一份。
 
 ## 3D / WebGL 页面的自动化验证
 - 沙箱内跑无头 Chrome：GPU 进程起不来（`GPU process exited unexpectedly: exit_code=6`），`Page.captureScreenshot` 会超时，`--no-sandbox` 也救不回来。
