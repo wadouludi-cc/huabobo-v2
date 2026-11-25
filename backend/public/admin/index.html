@@ -4,7 +4,7 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>指间塑 · 管理后台</title>
-  <link rel="stylesheet" href="admin.css?v=20261123a">
+  <link rel="stylesheet" href="admin.css?v=20261125b">
   <link rel="stylesheet" href="./vendor/toastui-editor.min.css">
   <script>
     /* 走当前页面同源（域名须 Nginx 反代 /api；IP:3000 则直连 Node） */
@@ -273,9 +273,11 @@
         <div class="models-admin-block">
           <div class="panel-toolbar">
             <h3 class="models-admin-heading">模型列表</h3>
-            <button type="button" id="btn-model-new" class="btn btn-primary">上传模型</button>
           </div>
           <div id="models-list" class="data-table-wrap"></div>
+          <div class="models-add-row">
+            <button type="button" id="btn-model-new" class="btn btn-add-model">＋ 上传模型</button>
+          </div>
           <form id="model-form" class="editor-card editor-card-wide" hidden>
             <h3 id="model-form-title">上传 GLB 模型</h3>
             <input type="hidden" id="model-edit-id">
@@ -433,6 +435,6 @@
 
   <script src="./vendor/admin-thumb.bundle.js?v=20261120b" data-admin-thumb-bundle="1"></script>
   <script src="./vendor/toastui-editor-all.min.js"></script>
-  <script src="admin.js?v=20261125a"></script>
+  <script src="admin.js?v=20261125b"></script>
 </body>
 </html>

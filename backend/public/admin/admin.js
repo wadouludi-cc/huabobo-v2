@@ -1604,6 +1604,9 @@
     var form = document.getElementById('category-form');
     var errEl = document.getElementById('category-form-error');
     form.hidden = false;
+    if (typeof form.scrollIntoView === 'function') {
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     errEl.hidden = true;
     document.getElementById('category-edit-id').value = id || '';
     document.getElementById('category-form-title').textContent = id ? '编辑分类' : '新增分类';
@@ -1884,6 +1887,9 @@
     var form = document.getElementById('model-form');
     var errEl = document.getElementById('model-form-error');
     form.hidden = false;
+    if (typeof form.scrollIntoView === 'function') {
+      form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
     errEl.hidden = true;
     document.getElementById('model-edit-id').value = id || '';
     document.getElementById('model-form-title').textContent = id ? '编辑模型' : '上传 GLB 模型';

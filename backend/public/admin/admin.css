@@ -664,6 +664,39 @@ body.admin-auth .app {
   justify-content: space-between;
 }
 
+/* 模型列表底部的上传入口：整行虚线按钮，点开表单紧贴在下方 */
+.models-add-row {
+  margin-top: 12px;
+}
+
+.btn-add-model {
+  display: block;
+  width: 100%;
+  padding: 13px 16px;
+  border: 1px dashed rgba(196, 30, 58, 0.35);
+  border-radius: var(--radius);
+  background: var(--surface);
+  color: var(--primary);
+  font-size: 0.9rem;
+  letter-spacing: 0.02em;
+}
+
+.btn-add-model:hover {
+  border-style: solid;
+  border-color: var(--primary);
+  background: rgba(196, 30, 58, 0.04);
+}
+
+.btn-add-model:focus-visible {
+  outline: 2px solid rgba(196, 30, 58, 0.4);
+  outline-offset: 2px;
+}
+
+.models-admin-block #model-form,
+.models-admin-block #category-form {
+  scroll-margin-top: 16px;
+}
+
 .news-field-content > span {
   display: block;
 }
