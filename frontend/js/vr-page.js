@@ -1,6 +1,6 @@
 /**
  * VR互动 介绍页 — 截图自动加载
- * 将图片按 vr-shot-1.jpg ~ vr-shot-6.jpg（或 .png/.webp）放入 images/，
+ * 将图片按 vr-shot-1.jpg ~ vr-shot-8.jpg（或 .png/.webp）放入 images/，
  * 页面自动替换占位；无需改代码。
  */
 (function () {
